@@ -1,6 +1,6 @@
 # DualSense Controller
 
-An interactive PS5 DualSense recreation built with HTML, CSS, JavaScript, and Three.js. The model, textures, and Three.js modules are included locally; the page does not require an external CDN or a build step.
+An interactive PS5 DualSense recreation built with HTML, CSS, JavaScript, and Three.js. The model, textures, and Three.js modules are included locally; the controller works without an external CDN or a build step. Optional analytics loads from PostHog; blocking it does not affect the controller.
 
 ## Run locally
 
@@ -65,3 +65,23 @@ The model was adapted for interaction, with separated controls, adjusted materia
 Three.js is distributed under its included [MIT license](controller/vendor/three/LICENSE).
 
 This is an independent visual recreation, not an official Sony product or a verified dimensional CAD model. PlayStation and DualSense are trademarks of Sony Interactive Entertainment.
+
+## Analytics
+
+[PostHog project](https://us.posthog.com/project/594399) tracks this demo with cookieless analytics, no identified person profiles, no session recordings, and no automatic click/keyboard capture. Do Not Track is respected. Unique visitors are estimates and cookieless identity resets daily.
+
+Localhost traffic is disabled by default. For an explicit integration test open `http://localhost:5173/controller.html?analytics_test=1` in the original preview, or `http://localhost:8000/?analytics_test=1` here. Those events have `environment=development`; filter dashboards to `environment=production` for real traffic.
+
+| Event | Meaning |
+| --- | --- |
+| `$pageview` | Page opened; includes referrer and campaign information |
+| `controller_loaded` | 3D model successfully ready |
+| `controller_interacted` | First meaningful interaction, once per page visit |
+| `controller_feature_used` | Button, stick, rotate, zoom, view, finish, or sound; once per feature per visit |
+| `controller_finish_selected` | Selected finish, once per color per visit |
+| `controller_gamepad_connected` | Gamepad found, once per page visit; no device identifier captured |
+| `controller_active_time` | Incremental `seconds` of estimated active use; stops after 5 seconds of inactivity or when hidden/unfocused |
+
+A visit here means one page load. Sum `controller_active_time.seconds` for active time; count `controller_interacted` for engaged page visits or use unique users for estimated people. Do not treat total events as visitor counts. Tracking begins only after the updated files are deployed.
+
+The public project token in `controller/analytics.js` only allows event ingestion; it cannot read analytics or manage the account. If you fork the project, replace it with your own token. Cookieless server hash mode must be enabled in PostHog project settings.

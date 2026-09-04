@@ -1,3 +1,4 @@
+import { analytics } from './analytics.js';
 import { ControllerInput } from './input-state.js';
 import { DualSenseView } from './controller-view.js';
 
@@ -35,6 +36,7 @@ function tone(id) {
 
 const input = new ControllerInput(event => {
   if (event.type === 'axis') {
+    if (Math.hypot(event.x, event.y) > .1) analytics.interact('stick');
     for (const axis of ['x','y']) $(event.side + '-' + axis).textContent = (Math.abs(event[axis]) < .005 ? 0 : event[axis]).toFixed(2);
     $(event.side + '-dot').style.transform = `translate(${event.x * 12}px,${event.y * 12}px)`;
     return;
@@ -45,6 +47,7 @@ const input = new ControllerInput(event => {
     $(event.id + '-meter').style.width = event.value * 100 + '%';
   }
   if (event.value && !event.before) {
+    analytics.interact('button');
     tone(event.id); status(labels[event.id]);
     if (event.id === 'ps' && view) { view.lights = !view.lights; status(view.lights ? 'Light bars on' : 'Light bars off'); }
     if (event.id === 'mute' && view) { view.muted = !view.muted; status(view.muted ? 'Microphone mute on' : 'Microphone mute off'); }
@@ -114,6 +117,7 @@ canvas.addEventListener('pointermove', event => {
   } else if (pointer.id === 'l2' || pointer.id === 'r2') input.setButton(pointer.id,'pointer:'+event.pointerId,1+dy/120);
   else if (pointer.id === 'touchpad') { const hit=view.hit(event.clientX,event.clientY); if(hit?.id==='touchpad')view.touch(hit.point); }
   else if (!pointer.id || pointer.id === 'lights') {
+    if (pointer.moved) analytics.interact('rotate');
     view.pose.x = Math.max(-1.4,Math.min(1.4,pointer.pose.x+dy*.008));
     view.pose.y = pointer.pose.y+dx*.008;
     view.pose.z = 0;
@@ -135,21 +139,21 @@ canvas.addEventListener('pointerup', event=>releasePointer(event));
 canvas.addEventListener('pointercancel', event=>releasePointer(event,true));
 canvas.addEventListener('lostpointercapture', event=>releasePointer(event,true));
 canvas.addEventListener('pointerleave', () => { $('hover-label').textContent=''; });
-canvas.addEventListener('wheel',event=>{if(!view?.ready)return;event.preventDefault();view.zoom=Math.max(.75,Math.min(1.6,view.zoom-event.deltaY*.001));view.resize();},{passive:false});
+canvas.addEventListener('wheel',event=>{if(!view?.ready)return;event.preventDefault();analytics.interact('zoom');view.zoom=Math.max(.75,Math.min(1.6,view.zoom-event.deltaY*.001));view.resize();},{passive:false});
 canvas.addEventListener('webglcontextlost',event=>{event.preventDefault();releaseAll();if(view)view.contextLost=true;showError('The 3D view was interrupted. Reload it to continue.');});
 
 for (const button of document.querySelectorAll('[data-view]')) button.addEventListener('click',()=>{
-  if(!view?.ready)return;releaseAll();view.setView(button.dataset.view);
+  if(!view?.ready)return;releaseAll();view.setView(button.dataset.view);analytics.interact('view');
   document.querySelectorAll('[data-view]').forEach(el=>el.setAttribute('aria-pressed',String(el===button)));
 });
 for (const button of document.querySelectorAll('[data-finish]')) button.addEventListener('click',()=>{
-  if(!view?.ready)return;view.setFinish(button.dataset.finish);
+  if(!view?.ready)return;view.setFinish(button.dataset.finish);analytics.finish(button.dataset.finish);
   document.querySelectorAll('[data-finish]').forEach(el=>el.setAttribute('aria-pressed',String(el===button)));
   const name={white:'White',black:'Midnight Black',red:'Cosmic Red'}[button.dataset.finish];
   $('finish-label').textContent=name;$('announcement').textContent=name+' selected';
 });
 $('sound').addEventListener('click',()=>{
-  sound=!sound;$('sound').setAttribute('aria-pressed',String(sound));$('sound').setAttribute('aria-label',sound?'Disable button sounds':'Enable button sounds');
+  analytics.interact('sound');sound=!sound;$('sound').setAttribute('aria-pressed',String(sound));$('sound').setAttribute('aria-label',sound?'Disable button sounds':'Enable button sounds');
   $('sound-lines').setAttribute('d',sound?'M15 8a6 6 0 0 1 0 8m3-11a10 10 0 0 1 0 14':'m16 9 5 6m0-6-5 6');if(sound)tone('cross');
 });
 $('reset').addEventListener('click',()=>{
@@ -169,6 +173,7 @@ function discoverPad(){
   input.releaseSource('gamepad');gamepadIndex=next;
   $('mode-label').textContent=pad?'Controller connected':'Virtual controller';
   $('connect-note').textContent=pad?(pad.mapping==='standard'?'Your controller is connected. All inputs are live.':'This controller uses a custom layout. Use the on-screen controls.'):'Connect your controller and press any button to mirror it here.';
+  if(pad)analytics.once('controller_gamepad_connected', { mapping: pad.mapping || 'custom' });
   if(pad&&!gamepadFrame)gamepadFrame=requestAnimationFrame(pollPad);
   if(!pad){cancelAnimationFrame(gamepadFrame);gamepadFrame=0;}
 }
@@ -205,6 +210,7 @@ function showError(message){$('loading').hidden=true;$('load-error').hidden=fals
 try{
   view=new DualSenseView(canvas,input);
   await view.load(percent=>{$('load-progress').textContent=percent+'%';});
+  analytics.once('controller_loaded');
   view.setView('front');addAccessibleControls();$('loading').hidden=true;$('viewer').setAttribute('aria-busy','false');
   document.querySelectorAll('[data-finish],[data-view]').forEach(button=>button.disabled=false);
   discoverPad();
