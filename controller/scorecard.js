@@ -13,7 +13,7 @@ export class Scorecard {
     ctx.fillStyle = '#a9bad0'; ctx.font = '18px system-ui'; ctx.fillText('CONTROLLER STUDIO / TARGET PRACTICE', 64, 68);
     ctx.fillStyle = '#f6f7fa'; ctx.font = 'bold 38px system-ui'; ctx.fillText('Make every shot count.', 64, 139);
     ctx.fillStyle = '#f4d878'; ctx.font = 'bold 140px system-ui'; ctx.fillText(result.score.toLocaleString(), 56, 315);
-    ctx.fillStyle = '#a9bad0'; ctx.font = '18px system-ui'; ctx.fillText('POINTS / 45 SECOND ROUND', 64, 353);
+    ctx.fillStyle = '#a9bad0'; ctx.font = '18px system-ui'; ctx.fillText('POINTS / 20 SECOND ROUND', 64, 353);
     const accuracy = result.shots ? Math.round(result.hits / result.shots * 100) : 0;
     const weapons = result.weapons.map(mode => TargetPractice.weapons[mode].label).join(' + ') || 'No shots fired';
     ctx.fillStyle = '#ffffff'; ctx.font = 'bold 40px system-ui'; ctx.fillText(accuracy + '%', 64, 447); ctx.fillText(`${result.hits}/${result.shots}`, 345, 447);

@@ -78,8 +78,9 @@ test('pause freezes timer and firing; resume and weapon switches require a fresh
   game.setWeapon('smg'); game.step(1, { pressure: 1 }); assert.equal(game.shots, shots + 1);
 });
 
-test('round completion stops shots at 45 seconds, and replay clears the score', () => {
-  const { game } = setup('lmg'); game.trigger(0); game.step(45, { pressure: 1 });
+test('round completion stops shots at 20 seconds, and replay clears the score', () => {
+  const { game } = setup('lmg'); game.step(19.5); assert.equal(game.state, 'playing'); assert.equal(game.remaining, .5);
+  game.trigger(0); game.step(.5, { pressure: 1 });
   assert.equal(game.state, 'finished'); assert.equal(game.remaining, 0); assert.equal(game.shots, 0);
   game.trigger(1); assert.equal(game.shots, 0);
   game.start(); assert.equal(game.state, 'playing'); assert.equal(game.elapsed, 0); assert.equal(game.targets.length, 3);

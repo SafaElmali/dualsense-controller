@@ -14,7 +14,7 @@ export class TargetPracticeView {
       this.impacts.push({ ...shot, at: this.game.elapsed }); onShot?.();
     } });
     this.best = 0;
-    try { this.best = Number(localStorage.getItem('dualsense-range-best')) || 0; } catch { /* Storage is optional. */ }
+    try { this.best = Number(localStorage.getItem('dualsense-range-best-20s')) || 0; } catch { /* Storage is optional. */ }
     this.$('range-weapon').replaceChildren(...Object.entries(TargetPractice.weapons).map(([key, weapon]) => new Option(weapon.label, key)));
     this.$('range-weapon').addEventListener('change', event => this.selectWeapon(event.target.value));
     this.$('range-save-card').addEventListener('click', async () => {
@@ -187,7 +187,7 @@ export class TargetPracticeView {
     this.$('range-effects').textContent = this.effectsActive() ? 'Adaptive triggers enabled' : 'Enable adaptive triggers';
     const title = game.state === 'finished' ? 'Round complete.' : game.state === 'paused' ? 'Take a breath.' : 'Make every shot count.';
     const summary = game.state === 'finished' ? `${game.score.toLocaleString()} points · ${game.hits}/${game.shots} hits · ${game.accuracy}% accuracy`
-      : game.state === 'paused' ? 'Your timer is paused. Resume when you’re ready.' : '45 seconds. Moving targets. Your best shot.';
+      : game.state === 'paused' ? 'Your timer is paused. Resume when you’re ready.' : '20 seconds. Moving targets. Your best shot.';
     this.$('range-title').textContent = title; this.$('range-summary').textContent = summary;
     this.$('range-start').textContent = this.starting ? 'Starting…' : game.state === 'paused' ? 'Resume round' : game.state === 'finished' ? 'Play again' : 'Start round';
     this.$('range-feedback').textContent = this.effectsError || (this.effectsActive() ? 'Adaptive triggers active · feel your selected weapon' : 'Play freely. To feel adaptive triggers, enable them before starting or while paused.');
@@ -205,7 +205,7 @@ export class TargetPracticeView {
       this.onAction('target_practice', 'completed', this.lastResult);
       this.release(); this.onStopEffects();
       this.best = Math.max(this.best, this.game.score);
-      try { localStorage.setItem('dualsense-range-best', String(this.best)); } catch { /* Storage is optional. */ }
+      try { localStorage.setItem('dualsense-range-best-20s', String(this.best)); } catch { /* Storage is optional. */ }
       this.$('range-result').textContent = `Round complete: ${this.game.score} points and ${this.game.accuracy}% accuracy.`;
     }
     this.impacts = this.impacts.filter(impact => this.game.elapsed - impact.at < .4);

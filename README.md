@@ -109,7 +109,7 @@ Auto brings the touchpad into view when touched (held triggers retain camera pri
 
 ## Target practice
 
-Choose **Play target practice** beneath the page title to open a 45-second arcade round. Three moving bullseyes respawn after hits. Center hits score 100, outer hits score 50, and consecutive hits add a bonus up to 50 per hit. The HUD shows score, time, accuracy, streak, and a personal best stored only in your browser.
+Choose **Play target practice** beneath the page title to open a 20-second arcade round. Three moving bullseyes respawn after hits. Center hits score 100, outer hits score 50, and consecutive hits add a bonus up to 50 per hit. The HUD shows score, time, accuracy, streak, and a personal best stored only in your browser.
 
 - **Controller:** right stick aims, R2 fires, Triangle cycles weapons, and Cross starts/replays/resumes a round.
 - **Mouse:** aim and click; hold for automatic weapons. **Touchscreen:** tap targets.
@@ -160,11 +160,11 @@ To verify in PostHog, open **Activity → Events**, filter event names by the pr
 
 ## Community leaderboard
 
-Use **Leaderboard** beside **Play target practice**, or **View leaderboard** inside the game. The public board shows the top 50 submitted scores with nickname, accuracy, and weapons used. It keeps one best score per browser; ties use accuracy and then the earliest submission. Nicknames are not reserved identities. After a completed round with at least one shot, enter a nickname and choose **Submit score**. Publication is optional and clearly labeled.
+Use **Leaderboard** beside **Play target practice**, or **View leaderboard** inside the game. The public board shows the top 50 submitted scores with nickname, accuracy, and weapons used. The 20-second format uses a separate board and local personal best so older, longer rounds do not compete with it. It keeps one best score per browser; ties use accuracy and then the earliest submission. Nicknames are not reserved identities. After a completed round with at least one shot, enter a nickname and choose **Submit score**. Publication is optional and clearly labeled.
 
 The API is a Netlify Function at `/.netlify/functions/leaderboard`, backed by a site-wide, strongly consistent Netlify Blobs store named `dualsense-leaderboard`. It needs no separate database account or client-side secret. `npm run build` publishes only `index.html` and `controller/` to `dist/`; server code and dependencies are bundled separately as a function. Deploy through the existing Netlify Git connection. A plain static localhost server supports practice but cannot submit scores; the UI explains when the live leaderboard is unavailable.
 
-The server issues a round ID before play, requires at least 45 seconds before submission, and expires an unfinished round after one hour. Starting another round in the same browser invalidates the older unfinished ticket, including across tabs. Failed network requests can be retried without duplicate scores. Conditional storage writes preserve concurrent submissions. Server validation limits nickname characters, weapon values, score/hit relationships, and shot counts. These checks reduce accidental or trivial invalid submissions; this is a casual browser leaderboard, not cheat-proof competitive scoring.
+The server issues a round ID before play, requires at least 20 seconds before submission, and expires an unfinished round after one hour. Starting another round in the same browser invalidates the older unfinished ticket, including across tabs. Failed network requests can be retried without duplicate scores. Conditional storage writes preserve concurrent submissions. Server validation limits nickname characters, weapon values, score/hit relationships, and shot counts. These checks reduce accidental or trivial invalid submissions; this is a casual browser leaderboard, not cheat-proof competitive scoring.
 
 A random first-party `HttpOnly`, `Secure`, `SameSite=Strict` cookie identifies the browser for its personal best. It is restricted to the leaderboard endpoint. Clearing it creates a new player identity. The database retains the current round per browser, up to 100 best entries (50 shown), and hourly request counters keyed by a SHA-256 hash of the connecting IP; raw IPs are not written to Blobs. These gameplay records are separate from cookieless PostHog analytics. The public response never exposes browser identifiers or round IDs. Owners can inspect or remove leaderboard data through the site's Netlify Blobs controls.
 

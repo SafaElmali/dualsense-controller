@@ -30,7 +30,7 @@ export class LeaderboardService {
 
   async start(player) {
     const now = this.now(), id = this.uuid();
-    await this.change('players/' + player, current => {
+    await this.change('players/20-second/' + player, current => {
       if (current?.round && now - current.round.startedAt < 3000) throw new LeaderboardError('Wait a moment before starting another round.', 429);
       return { round: { id, startedAt: now } };
     });
@@ -53,15 +53,15 @@ export class LeaderboardService {
   async submit(player, roundId, nickname, result) {
     if (typeof roundId !== 'string') throw new LeaderboardError('Start a new round to join the leaderboard.');
     const checked = this.validate(nickname, result), now = this.now();
-    const saved = await this.change('players/' + player, current => {
+    const saved = await this.change('players/20-second/' + player, current => {
       if (!current?.round || current.round.id !== roundId) throw new LeaderboardError('This round is no longer available. Play a new round to submit.', 409);
       if (current.round.entry) return current; // Retried requests cannot alter a submitted round.
       const age = now - current.round.startedAt;
-      if (age < 45000 || age > 3600000) throw new LeaderboardError('Finish a new 45-second round before submitting.', 409);
+      if (age < 20000 || age > 3600000) throw new LeaderboardError('Finish a new 20-second round before submitting.', 409);
       return { round: { ...current.round, entry: { ...checked, player, submittedAt: now } } };
     });
     const entry = saved.round.entry;
-    const board = await this.change('board/v1', current => {
+    const board = await this.change('board/20-second-v1', current => {
       const entries = current?.entries ?? [];
       const best = entries.find(row => row.player === player);
       if (best && LeaderboardService.compare(best, entry) <= 0) return { entries };
@@ -72,7 +72,7 @@ export class LeaderboardService {
   }
 
   async list(player) {
-    const board = await this.store.get('board/v1', { type: 'json' });
+    const board = await this.store.get('board/20-second-v1', { type: 'json' });
     return { entries: (board?.entries ?? []).slice(0, 50).map(({ player: owner, nickname, score, hits, shots, weapons }, index) => ({ rank: index + 1, nickname, score, accuracy: Math.round(hits / shots * 100), weapons, mine: owner === player })) };
   }
 }

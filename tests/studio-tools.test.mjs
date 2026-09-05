@@ -89,8 +89,8 @@ test('disconnect, switching controllers and cancelling prevent measurements cros
 test('scorecard result records only fired weapons and survives replay unchanged', () => {
   const game = new TargetPractice(); game.start(); assert.equal(game.result(), null);
   game.trigger(0); game.trigger(1); game.setWeapon('shotgun'); game.step(1); game.trigger(0); game.trigger(1);
-  game.setWeapon('smg'); game.step(45);
+  game.setWeapon('smg'); game.step(20);
   const result = game.result(); assert.deepEqual(result.weapons, ['shooting', 'shotgun']); assert.equal(result.shots, 2);
   assert.ok(Object.isFrozen(result)); assert.ok(Object.isFrozen(result.weapons));
-  game.start(); assert.equal(game.shots, 0); assert.equal(result.shots, 2); game.step(45); assert.deepEqual(game.result().weapons, []);
+  game.start(); assert.equal(game.shots, 0); assert.equal(result.shots, 2); game.step(20); assert.deepEqual(game.result().weapons, []);
 });

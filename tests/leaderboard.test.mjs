@@ -21,7 +21,7 @@ const result = (score = 100, hits = 1, shots = 2, weapons = ['shooting']) => ({ 
 
 test('finished rounds persist across service instances and expose only public leaderboard fields', async () => {
   const { service, store, advance } = fixture();
-  const { roundId } = await service.start('player-a'); advance(45000);
+  const { roundId } = await service.start('player-a'); advance(20000);
   assert.deepEqual(await service.submit('player-a', roundId, '  Safa  ', result()), { rank: 1, improved: true });
   const read = new LeaderboardService(store);
   assert.deepEqual(await read.list('player-a'), { entries: [{ rank: 1, nickname: 'Safa', score: 100, accuracy: 50, weapons: ['shooting'], mine: true }] });
@@ -30,9 +30,9 @@ test('finished rounds persist across service instances and expose only public le
 });
 test('scores require the right player, a completed server-timed round, and an unexpired ticket', async () => {
   const { service, advance } = fixture(); const { roundId } = await service.start('a');
-  await assert.rejects(service.submit('a', roundId, 'Name', result()), /45-second/);
-  advance(45000); await assert.rejects(service.submit('b', roundId, 'Name', result()), /no longer/);
-  advance(3600000); await assert.rejects(service.submit('a', roundId, 'Name', result()), /45-second/);
+  await assert.rejects(service.submit('a', roundId, 'Name', result()), /20-second/);
+  advance(20000); await assert.rejects(service.submit('b', roundId, 'Name', result()), /no longer/);
+  advance(3600000); await assert.rejects(service.submit('a', roundId, 'Name', result()), /20-second/);
   assert.deepEqual((await service.list()).entries, []);
 });
 test('invalid names, impossible scores and invalid weapons never reach the board', () => {
@@ -42,32 +42,32 @@ test('invalid names, impossible scores and invalid weapons never reach the board
   assert.equal(service.validate('Çağrı', result()).nickname, 'Çağrı');
 });
 test('retried submissions cannot duplicate or alter a completed round', async () => {
-  const { service, advance } = fixture(); const { roundId } = await service.start('a'); advance(45000);
+  const { service, advance } = fixture(); const { roundId } = await service.start('a'); advance(20000);
   await Promise.all([service.submit('a', roundId, 'First', result()), service.submit('a', roundId, 'First', result())]);
   await service.submit('a', roundId, 'Changed', result(150));
   const { entries } = await service.list(); assert.equal(entries.length, 1); assert.equal(entries[0].nickname, 'First'); assert.equal(entries[0].score, 100);
 });
 test('simultaneous players are preserved and rank ties use accuracy then earlier submission', async () => {
-  const { service, advance } = fixture(); const [a, b] = await Promise.all([service.start('a'), service.start('b')]); advance(45000);
+  const { service, advance } = fixture(); const [a, b] = await Promise.all([service.start('a'), service.start('b')]); advance(20000);
   await Promise.all([service.submit('a', a.roundId, 'Player A', result(100, 1, 2)), service.submit('b', b.roundId, 'Player B', result(100, 1, 1))]);
   assert.deepEqual((await service.list()).entries.map(row => row.nickname), ['Player B', 'Player A']);
-  const c = await service.start('c'); advance(45000); await service.submit('c', c.roundId, 'Player C', result(100, 1, 1));
+  const c = await service.start('c'); advance(20000); await service.submit('c', c.roundId, 'Player C', result(100, 1, 1));
   assert.deepEqual((await service.list()).entries.map(row => row.nickname), ['Player B', 'Player C', 'Player A']);
 });
 test('new rounds keep personal bests and invalidate older unfinished tickets', async () => {
-  const { service, advance } = fixture(); const a = await service.start('a'); advance(45000);
+  const { service, advance } = fixture(); const a = await service.start('a'); advance(20000);
   await service.submit('a', a.roundId, 'Player', result(150));
-  const b = await service.start('a'); advance(45000);
+  const b = await service.start('a'); advance(20000);
   assert.equal((await service.submit('a', b.roundId, 'Player', result(100))).improved, false);
-  const c = await service.start('a'); advance(45000);
+  const c = await service.start('a'); advance(20000);
   await assert.rejects(service.submit('a', b.roundId, 'Player', result(150)), /no longer/);
   await service.submit('a', c.roundId, 'Player', result(200, 2, 3));
   assert.equal((await service.list()).entries[0].score, 200);
 });
 test('the public board is capped at 50 and storage retains at most 100 best scores', async () => {
   const { service, store, advance } = fixture();
-  for (let i = 0; i < 105; i++) { const ticket = await service.start('p' + i); advance(45000); await service.submit('p' + i, ticket.roundId, 'Player ' + i, result()); }
-  assert.equal((await service.list()).entries.length, 50); assert.equal((await store.get('board/v1')).entries.length, 100);
+  for (let i = 0; i < 105; i++) { const ticket = await service.start('p' + i); advance(20000); await service.submit('p' + i, ticket.roundId, 'Player ' + i, result()); }
+  assert.equal((await service.list()).entries.length, 50); assert.equal((await store.get('board/20-second-v1')).entries.length, 100);
 });
 test('rate limits survive independent requests, reset after an hour and do not store raw IPs', async () => {
   const { service, store, advance } = fixture();
