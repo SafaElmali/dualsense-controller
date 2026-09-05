@@ -2,7 +2,8 @@ import { Scorecard } from './scorecard.js';
 import { TargetPractice } from './target-practice.js';
 
 export class TargetPracticeView {
-  constructor({ input, onWeapon, onEnableEffects, onStopEffects, effectsActive, onShot, onOpen, onClose, onAction = () => {} }) {
+  constructor({ leaderboardClient, input, onWeapon, onEnableEffects, onStopEffects, effectsActive, onShot, onOpen, onClose, onAction = () => {} }) {
+    this.leaderboardClient = leaderboardClient; this.roundRequest = 0; this.roundId = null; this.starting = false; this.submitting = false;
     this.onAction = onAction;
     this.input = input; this.onWeapon = onWeapon; this.onEnableEffects = onEnableEffects;
     this.onStopEffects = onStopEffects; this.effectsActive = effectsActive; this.onOpen = onOpen; this.onClose = onClose;
@@ -21,6 +22,8 @@ export class TargetPracticeView {
       try { await Scorecard.save(result); this.$('range-download-status').textContent = 'Your scorecard is ready to save.'; this.onAction('scorecard', 'exported', result); }
       catch (error) { this.$('range-download-status').textContent = error.message; this.onAction('scorecard', 'export_failed'); }
     });
+    try { this.$('range-nickname').value = localStorage.getItem('dualsense-nickname') || ''; } catch { /* Optional convenience. */ }
+    this.$('range-submit-form').addEventListener('submit', event => { event.preventDefault(); void this.submitScore(); });
     this.$('range-start').addEventListener('click', () => this.start());
     this.$('range-pause').addEventListener('click', () => this.pause());
     this.$('range-close').addEventListener('click', () => this.close());
@@ -56,7 +59,8 @@ export class TargetPracticeView {
   open(mode) {
     this.onOpen();
     this.game.setWeapon(Object.hasOwn(TargetPractice.weapons, mode) ? mode : 'shooting');
-    this.game.start(); this.game.stop(); this.impacts = []; this.lastResult = null;
+    this.game.start(); this.game.stop(); this.impacts = []; this.lastResult = null; this.roundId = null;
+    this.$('range-submit-status').textContent = ''; this.$('range-ranking-status').textContent = '';
     this.$('range-download-status').textContent = '';
     this.$('range-weapon').value = this.game.weapon;
     this.onWeapon(this.game.weapon);
@@ -66,7 +70,7 @@ export class TargetPracticeView {
 
   close() { this.dialog.close(); }
   dispose() { if (this.isOpen) this.cleanup(); cancelAnimationFrame(this.frame); this.observer.disconnect(); }
-  cleanup() { cancelAnimationFrame(this.frame); this.release(); this.game.stop(); this.onStopEffects(); this.onClose(); }
+  cleanup() { this.roundRequest++; this.starting = false; cancelAnimationFrame(this.frame); this.release(); this.game.stop(); this.onStopEffects(); this.onClose(); }
   release() {
     this.keys.clear(); this.input.releaseSource('range-key'); this.input.releaseSource('range-pointer');
     this.input.releaseAxis('right', 'keyboard');
@@ -74,13 +78,44 @@ export class TargetPracticeView {
     this.pointer = null;
   }
 
-  start() {
+  async start() {
+    if (this.starting || this.submitting || document.getElementById('leaderboard')?.open) return;
     this.release(); this.impacts = []; this.previousTime = 0;
     this.$('range-result').textContent = ''; this.$('range-download-status').textContent = '';
     if (this.game.state === 'paused') this.game.resume();
-    else { this.game.start(); this.onAction('target_practice', 'started', { mode: this.game.weapon }); }
+    else {
+      const request = ++this.roundRequest;
+      this.starting = true; this.roundId = null; this.lastResult = null; this.submitted = false;
+      this.$('range-submit-status').textContent = ''; this.$('range-ranking-status').textContent = 'Getting your round ready…'; this.update();
+      try {
+        const ticket = await this.leaderboardClient.start();
+        if (request === this.roundRequest) { this.roundId = ticket.roundId; this.$('range-ranking-status').textContent = 'Finish your round to submit to the leaderboard.'; }
+      } catch (error) { if (request === this.roundRequest) this.$('range-ranking-status').textContent = error.message; }
+      if (request !== this.roundRequest || !this.isOpen) return;
+      this.starting = false;
+      this.game.start(); this.onAction('target_practice', 'started', { mode: this.game.weapon });
+      if (document.hidden || !document.hasFocus() || document.getElementById('leaderboard')?.open) { this.game.pause(); this.onStopEffects(); }
+    }
     this.game.trigger(this.input.button('r2'));
-    this.canvas.focus(); this.update();
+    if (this.game.state === 'playing') this.canvas.focus(); this.update();
+  }
+
+  async submitScore() {
+    if (this.submitting || this.submitted || !this.roundId || !this.lastResult || this.game.state !== 'finished') return;
+    this.submitting = true; this.update();
+    const request = this.roundRequest, nickname = this.$('range-nickname').value.trim();
+    this.$('range-submit-status').textContent = 'Submitting your score…';
+    try {
+      const result = await this.leaderboardClient.submit(this.roundId, nickname, this.lastResult);
+      if (request !== this.roundRequest) return;
+      this.submitted = true;
+      try { localStorage.setItem('dualsense-nickname', nickname); } catch { /* Optional convenience. */ }
+      const placement = result.rank && result.rank <= 50 ? `You’re #${result.rank} on the leaderboard.` : 'Keep aiming for the top 50.';
+      this.$('range-submit-status').textContent = (!result.rank ? 'Round submitted. ' : result.improved ? 'Score saved! ' : 'Your best score is already saved. ') + placement;
+      this.$('range-ranking-status').textContent = '';
+      this.onAction('leaderboard', 'submitted', { score: this.lastResult.score });
+    } catch (error) { if (request === this.roundRequest) this.$('range-submit-status').textContent = error.message; }
+    finally { this.submitting = false; this.update(); }
   }
 
   pause() {
@@ -94,7 +129,7 @@ export class TargetPracticeView {
   }
 
   handleInput(event) {
-    if (!this.isOpen || event.type !== 'button') return;
+    if (!this.isOpen || document.getElementById('leaderboard')?.open || event.type !== 'button') return;
     if (event.id === 'r2') this.game.trigger(event.value);
     if (!event.value || event.before) return;
     if (event.id === 'triangle') {
@@ -105,7 +140,7 @@ export class TargetPracticeView {
   }
 
   key(event, pressed) {
-    if (!this.isOpen || event.ctrlKey || event.metaKey || event.altKey) return;
+    if (!this.isOpen || document.getElementById('leaderboard')?.open || event.ctrlKey || event.metaKey || event.altKey) return;
     if (pressed && event.target.closest?.('button,select,input')) return;
     const directions = ['ArrowLeft','ArrowRight','ArrowUp','ArrowDown','KeyA','KeyD','KeyW','KeyS'];
     if (!directions.includes(event.code) && !['Space','Digit1','Digit2','Digit3','Digit4'].includes(event.code)) return;
@@ -140,6 +175,11 @@ export class TargetPracticeView {
     this.$('range-accuracy').textContent = game.accuracy + '%';
     this.$('range-streak').textContent = game.streak;
     this.$('range-best').textContent = this.best.toLocaleString();
+    this.$('range-start').disabled = this.starting || this.submitting;
+    this.$('range-submit-form').hidden = game.state !== 'finished' || !this.roundId || !this.lastResult?.shots || this.starting;
+    this.$('range-submit').disabled = this.submitting || this.submitted;
+    this.$('range-submit').textContent = this.submitted ? 'Score submitted' : this.submitting ? 'Submitting…' : 'Submit score';
+    this.$('range-nickname').disabled = this.submitting || this.submitted;
     this.$('range-save-card').hidden = game.state !== 'finished';
     this.$('range-overlay').hidden = game.state === 'playing';
     this.$('range-pause').disabled = game.state !== 'playing';
@@ -149,7 +189,7 @@ export class TargetPracticeView {
     const summary = game.state === 'finished' ? `${game.score.toLocaleString()} points · ${game.hits}/${game.shots} hits · ${game.accuracy}% accuracy`
       : game.state === 'paused' ? 'Your timer is paused. Resume when you’re ready.' : '45 seconds. Moving targets. Your best shot.';
     this.$('range-title').textContent = title; this.$('range-summary').textContent = summary;
-    this.$('range-start').textContent = game.state === 'paused' ? 'Resume round' : game.state === 'finished' ? 'Play again' : 'Start round';
+    this.$('range-start').textContent = this.starting ? 'Starting…' : game.state === 'paused' ? 'Resume round' : game.state === 'finished' ? 'Play again' : 'Start round';
     this.$('range-feedback').textContent = this.effectsError || (this.effectsActive() ? 'Adaptive triggers active · feel your selected weapon' : 'Play freely. To feel adaptive triggers, enable them before starting or while paused.');
   }
 
@@ -161,6 +201,7 @@ export class TargetPracticeView {
     if (!document.hidden && document.hasFocus()) this.game.step(dt, { ...this.input.axis('right'), pressure: this.input.button('r2') });
     if (wasPlaying && this.game.state === 'finished') {
       this.lastResult = this.game.result();
+      if (this.roundId) this.$('range-ranking-status').textContent = this.lastResult.shots ? 'Submit your score below.' : 'Take at least one shot in your next round to join the leaderboard.';
       this.onAction('target_practice', 'completed', this.lastResult);
       this.release(); this.onStopEffects();
       this.best = Math.max(this.best, this.game.score);

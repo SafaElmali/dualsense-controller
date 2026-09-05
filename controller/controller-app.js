@@ -6,6 +6,7 @@ import { TouchpadInput } from './touchpad-input.js';
 import { DualSenseView } from './controller-view.js';
 import { TouchDrawingView } from './touch-drawing-view.js';
 import { DiagnosticsView } from './diagnostics-view.js';
+import { LeaderboardClient, LeaderboardView } from './leaderboard.js';
 import { TargetPracticeView } from './target-practice-view.js';
 
 const $ = id => document.getElementById(id);
@@ -19,7 +20,7 @@ const heldKeys = new Set();
 const pointers = new Map();
 const accessibleButtons = new Map();
 const timers = new Set();
-let view, range, drawing, diagnostics, audio, sound = false, statusTimer, gamepadIndex = null, gamepadFrame = 0;
+let view, range, drawing, diagnostics, leaderboard, audio, sound = false, statusTimer, gamepadIndex = null, gamepadFrame = 0;
 const inputCamera = new InputCamera(angle => {
   // Keep a dragged control under the pointer until the gesture ends.
   if (!view?.ready || pointers.size) return;
@@ -32,6 +33,7 @@ function setAutoView(enabled) {
 }
 $('auto-view').addEventListener('click', () => setAutoView(!inputCamera.enabled));
 
+const leaderboardClient = new LeaderboardClient();
 const triggerStatus = $('trigger-effect-status');
 let triggerBusy = false;
 const touchpad = new TouchpadInput(contacts => {
@@ -208,7 +210,7 @@ function keyAxes() {
   }
 }
 window.addEventListener('keydown', event => {
-  if (range?.isOpen || drawing?.isOpen || diagnostics?.isOpen || event.ctrlKey || event.metaKey || event.altKey || help.open || event.target.closest?.('button,input,select,textarea,a')) return;
+  if (range?.isOpen || drawing?.isOpen || diagnostics?.isOpen || leaderboard?.isOpen || event.ctrlKey || event.metaKey || event.altKey || help.open || event.target.closest?.('button,input,select,textarea,a')) return;
   if (!keyMap[event.code] && !analogCodes.has(event.code)) return;
   event.preventDefault(); if (event.repeat) return; heldKeys.add(event.code);
   if (keyMap[event.code]) input.setButton(keyMap[event.code], 'key:' + event.code, 1);
@@ -220,9 +222,9 @@ window.addEventListener('keyup', event => {
   if (analogCodes.has(event.code)) { keyAxes(); status('Stick centered', false); }
 });
 window.addEventListener('blur', () => { touchpad.setPaused(true); releaseAll(); });
-window.addEventListener('focus', () => { touchpad.setPaused(document.hidden || help.open || range?.isOpen || diagnostics?.isOpen); });
+window.addEventListener('focus', () => { touchpad.setPaused(document.hidden || help.open || range?.isOpen || diagnostics?.isOpen || leaderboard?.isOpen); });
 document.addEventListener('visibilitychange', () => {
-  touchpad.setPaused(document.hidden || !document.hasFocus() || help.open || range?.isOpen || diagnostics?.isOpen);
+  touchpad.setPaused(document.hidden || !document.hasFocus() || help.open || range?.isOpen || diagnostics?.isOpen || leaderboard?.isOpen);
   if (document.hidden) releaseAll();
 });
 
@@ -323,7 +325,7 @@ function discoverPad(){
 }
 function pollPad(){
   gamepadFrame=requestAnimationFrame(pollPad);
-  if(document.hidden||!document.hasFocus()||help.open||drawing?.isOpen||diagnostics?.isOpen||!view?.ready)return;
+  if(document.hidden||!document.hasFocus()||help.open||drawing?.isOpen||diagnostics?.isOpen||leaderboard?.isOpen||!view?.ready)return;
   const pad=gamepads()[gamepadIndex];if(!pad||pad.mapping!=='standard')return;
   padMap.forEach((id,index)=>{const value=pad.buttons[index]?.value||0;input.setButton(id,'gamepad',value>.04?value:0);});
   for(const [side,offset]of [['left',0],['right',2]]){
@@ -362,6 +364,7 @@ function addAccessibleControls(){
 }
 function showError(message){stopTriggers();$('loading').hidden=true;$('load-error').hidden=false;$('error-message').textContent=message;}
 range = new TargetPracticeView({
+  leaderboardClient,
   onAction: (feature, action, properties) => analytics.featureAction(feature, action, properties),
   input,
   onOpen: () => { releaseAll(); touchpad.setPaused(true); if (view) view.suspended = true; },
@@ -397,6 +400,14 @@ diagnostics = new DiagnosticsView({
   onOpen: () => { stopTriggers(); releaseAll(); touchpad.setPaused(true); if (view) view.suspended = true; },
   onClose: closeStudioTool,
 });
+leaderboard = new LeaderboardView({
+  client: leaderboardClient,
+  onAction: (feature, action, properties) => analytics.featureAction(feature, action, properties),
+  onOpen: () => { range?.pause(); stopTriggers(); releaseAll(); touchpad.setPaused(true); if (view) view.suspended = true; },
+  onClose: () => { if (view) view.suspended = range?.isOpen; touchpad.setPaused(document.hidden || !document.hasFocus() || range?.isOpen); },
+});
+$('open-leaderboard').addEventListener('click', () => leaderboard.open());
+$('range-leaderboard').addEventListener('click', () => leaderboard.open());
 $('open-drawing').addEventListener('click', () => drawing.open());
 $('open-diagnostics').addEventListener('click', () => diagnostics.open());
 $('open-range').addEventListener('click', () => { range.open(triggerMode.value); analytics.interact('target_practice'); });

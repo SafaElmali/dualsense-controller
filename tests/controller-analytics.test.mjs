@@ -98,3 +98,10 @@ test('arriving at a shared preset does not count as a deliberate interaction', (
   analytics.featureAction('trigger_presets', 'changed', { mode: 'smg', strength: 4, speed_hz: 18 });
   assert.equal(events.filter(e => e.name === 'controller_interacted').length, 1);
 });
+
+test('leaderboard usage captures scores without nicknames or player identifiers', () => {
+  const { analytics, events } = harness();
+  analytics.featureAction('leaderboard', 'opened');
+  analytics.featureAction('leaderboard', 'submitted', { score: 250, nickname: 'Private nickname', player: 'private player', roundId: 'private round' });
+  assert.deepEqual(events.find(event => event.name === 'controller_leaderboard_submitted'), { name: 'controller_leaderboard_submitted', score: 250 });
+});

@@ -13,7 +13,7 @@
 <body>
 <main>
   <header><div class="brand"><span class="brand-icon" aria-hidden="true"><svg viewBox="0 0 58 20"><path d="M1 17 9 3l8 14Z"/><circle cx="29" cy="10" r="7"/><path d="m43 3 14 14M57 3 43 17"/></svg></span>PlayStation<span class="edition">/ CONTROLLER STUDIO</span></div><div class="header-actions"><span class="mode"><i></i><span id="mode-label">Virtual controller</span></span><button class="icon-button" id="sound" aria-label="Enable button sounds" aria-pressed="false" title="Button sounds"><svg viewBox="0 0 24 24"><path d="m11 5-6 4H2v6h3l6 4Z"/><path id="sound-lines" d="m16 9 5 6m0-6-5 6"/></svg></button></div></header>
-  <section class="intro"><div><h1>DualSense.</h1><p>PS5 wireless controller. Every angle, in your hands.</p><button class="range-launch" id="open-range">◎ &nbsp; Play target practice <span>NEW</span></button></div><div class="model"><span>WIRELESS CONTROLLER</span>CFI–ZCT1W / 01</div></section>
+  <section class="intro"><div><h1>DualSense.</h1><p>PS5 wireless controller. Every angle, in your hands.</p><button class="range-launch" id="open-range">◎ &nbsp; Play target practice <span>NEW</span></button><button class="range-launch" id="open-leaderboard">Leaderboard</button></div><div class="model"><span>WIRELESS CONTROLLER</span>CFI–ZCT1W / 01</div></section>
   <section class="stage" aria-label="Interactive 3D DualSense controller">
     <div class="view-switch" aria-label="Camera angle"><button id="auto-view" aria-pressed="true" disabled title="Follow the controls you use">Auto</button><button data-view="front" aria-pressed="false" disabled>Front</button><button data-view="angle" aria-pressed="false" disabled>Angle</button><button data-view="back" aria-pressed="false" disabled>Back</button></div>
     <div class="viewer" id="viewer" aria-busy="true">
@@ -59,6 +59,13 @@
   <div class="range-hud" aria-label="Round statistics"><span>SCORE<strong id="range-score">0</strong></span><span>TIME<strong id="range-time">45s</strong></span><span>ACCURACY<strong id="range-accuracy">0%</strong></span><span>STREAK<strong id="range-streak">0</strong></span><span>BEST<strong id="range-best">0</strong></span></div>
   <div class="range-field"><canvas id="range-canvas" width="1000" height="560" tabindex="0" aria-label="Target practice. Aim with the right stick, mouse, arrow keys or WASD. Fire with R2, Space, or click. On touchscreens, tap a target."></canvas><div id="range-overlay" class="range-overlay"><span class="range-eyebrow">AIM. SQUEEZE. REPEAT.</span><h3 id="range-title">Make every shot count.</h3><p id="range-summary">45 seconds. Moving targets. Your best shot.</p><div class="range-result-actions"><button id="range-start" class="range-primary">Start round</button><button id="range-save-card" class="retry-button" hidden>Download scorecard</button></div><small>Or press × on your controller</small><span id="range-download-status" role="status"></span></div></div>
   <div class="range-toolbar"><label>WEAPON <select id="range-weapon"><option value="shooting">Pistol</option></select></label><button id="range-effects" class="retry-button">Enable adaptive triggers</button><button id="range-pause" class="retry-button" disabled>Pause</button><p id="range-feedback">Play freely, or enable adaptive triggers for the physical effect.</p></div>
+  <form id="range-submit-form" class="range-submit" hidden>
+    <div><strong>Put your name on the board.</strong><p>Your nickname, score, accuracy, and weapons will be public.</p></div>
+    <label>Nickname<input id="range-nickname" name="nickname" minlength="2" maxlength="20" required autocomplete="nickname" placeholder="Your callsign"></label>
+    <button id="range-submit" class="range-primary" type="submit">Submit score</button>
+    <p id="range-submit-status" role="status"></p>
+  </form>
+  <div class="range-leaderboard-row"><button id="range-leaderboard" class="retry-button">View leaderboard</button><span id="range-ranking-status" role="status"></span></div>
   <p class="range-instructions"><b>Controller</b> Right stick to aim · R2 to fire · △ to switch weapons <br><b>Mouse / keyboard</b> Move + click, or WASD / arrows + Space · 1–4 to switch · Tap targets on mobile</p>
   <p class="range-instructions">Pistol &amp; Shotgun: release between shots. LMG &amp; SMG: hold to fire. Bullseyes score 100, outer hits 50, with bonuses for a streak.</p>
   <output id="range-result" class="sr-only" aria-live="polite"></output>
@@ -82,6 +89,12 @@
   <p class="studio-description">Slowly squeeze each trigger from released to fully pressed. Press and release every button; the count records each press.</p>
   <div id="diagnostics-buttons" class="diagnostic-buttons" aria-label="Button response"></div>
   <p class="studio-description">These are the readings your browser receives. This check does not change calibration or measure end-to-end input latency.</p>
+</dialog>
+<dialog id="leaderboard" class="studio-dialog" aria-labelledby="leaderboard-heading">
+  <div class="range-header"><div><span class="range-eyebrow">CONTROLLER STUDIO / COMMUNITY</span><h2 id="leaderboard-heading">The leaderboard.</h2></div><button id="leaderboard-close" class="retry-button">Back to game</button></div>
+  <p class="studio-description">45 seconds. Make them count. Play a round, then submit your best shot.</p>
+  <div class="leaderboard-table"><table><thead><tr><th scope="col">Rank</th><th scope="col">Player</th><th scope="col">Score</th><th scope="col">Accuracy</th><th scope="col">Weapon</th></tr></thead><tbody id="leaderboard-rows"></tbody></table></div>
+  <div class="studio-toolbar"><button id="leaderboard-refresh" class="retry-button">Refresh scores</button></div><p id="leaderboard-status" class="studio-description" role="status"></p>
 </dialog>
 <script type="module" src="./controller/controller-app.js"></script>
 </body>

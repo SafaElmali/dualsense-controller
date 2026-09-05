@@ -1,6 +1,6 @@
 # DualSense Controller
 
-An interactive PS5 DualSense recreation built with HTML, CSS, JavaScript, and Three.js. The model, textures, and Three.js modules are included locally; the controller works without an external CDN or a build step. Optional analytics loads from PostHog; blocking it does not affect the controller.
+An interactive PS5 DualSense recreation built with HTML, CSS, JavaScript, and Three.js. The model, textures, and Three.js modules are included locally; the controller works without an external CDN. Netlify builds a static publish folder and a leaderboard function. Optional analytics loads from PostHog; blocking it does not affect the controller.
 
 ## Run locally
 
@@ -38,7 +38,7 @@ Home toggles the simulated light bars. Microphone mute remains a visual simulati
 
 ## Tests
 
-Node.js 20 or newer is required for the tests. No dependency installation is needed.
+Node.js 20 or newer is required for the tests. Run `npm ci` to install the server storage dependency.
 
 ```sh
 npm test
@@ -138,7 +138,7 @@ For a standard-mapped controller, L2 and R2 show current travel and observed min
 
 ## Shareable scorecards
 
-Finish a target-practice round, then choose **Download scorecard**. The 1200 × 675 PNG includes the score, accuracy, hits/shots, and every weapon actually fired during that round. Switching weapons after completion cannot change the card, and replay cannot change a download already started. Empty rounds explicitly say no shots were fired. Cards are generated locally; there is no account, upload, or public leaderboard.
+Finish a target-practice round, then choose **Download scorecard**. The 1200 × 675 PNG includes the score, accuracy, hits/shots, and every weapon actually fired during that round. Switching weapons after completion cannot change the card, and replay cannot change a download already started. Empty rounds explicitly say no shots were fired. Cards are generated locally. Players can separately choose to submit their round to the public leaderboard.
 
 ### Studio feature analytics
 
@@ -156,3 +156,18 @@ The new tools send explicit PostHog events through the same cookieless client an
 In this table, each underscored suffix continues the full event prefix in its row. An export event confirms PNG generation and a browser download request; it cannot confirm that the user saved the file to disk or posted it elsewhere. Custom properties use an allowlist; the existing PostHog client also attaches standard page/browser metadata. No artwork, touch coordinates, stick/trigger readings, controller IDs, or raw error messages are sent. Blocked analytics never interrupts the tools.
 
 To verify in PostHog, open **Activity → Events**, filter event names by the prefixes above, and filter `app=dualsense-controller` plus `environment=production`. For development checks use `?analytics_test=1` on localhost and `environment=development`; these are excluded from the production dashboard.
+
+
+## Community leaderboard
+
+Use **Leaderboard** beside **Play target practice**, or **View leaderboard** inside the game. The public board shows the top 50 submitted scores with nickname, accuracy, and weapons used. It keeps one best score per browser; ties use accuracy and then the earliest submission. Nicknames are not reserved identities. After a completed round with at least one shot, enter a nickname and choose **Submit score**. Publication is optional and clearly labeled.
+
+The API is a Netlify Function at `/.netlify/functions/leaderboard`, backed by a site-wide, strongly consistent Netlify Blobs store named `dualsense-leaderboard`. It needs no separate database account or client-side secret. `npm run build` publishes only `index.html` and `controller/` to `dist/`; server code and dependencies are bundled separately as a function. Deploy through the existing Netlify Git connection. A plain static localhost server supports practice but cannot submit scores; the UI explains when the live leaderboard is unavailable.
+
+The server issues a round ID before play, requires at least 45 seconds before submission, and expires an unfinished round after one hour. Starting another round in the same browser invalidates the older unfinished ticket, including across tabs. Failed network requests can be retried without duplicate scores. Conditional storage writes preserve concurrent submissions. Server validation limits nickname characters, weapon values, score/hit relationships, and shot counts. These checks reduce accidental or trivial invalid submissions; this is a casual browser leaderboard, not cheat-proof competitive scoring.
+
+A random first-party `HttpOnly`, `Secure`, `SameSite=Strict` cookie identifies the browser for its personal best. It is restricted to the leaderboard endpoint. Clearing it creates a new player identity. The database retains the current round per browser, up to 100 best entries (50 shown), and hourly request counters keyed by a SHA-256 hash of the connecting IP; raw IPs are not written to Blobs. These gameplay records are separate from cookieless PostHog analytics. The public response never exposes browser identifiers or round IDs. Owners can inspect or remove leaderboard data through the site's Netlify Blobs controls.
+
+PostHog records `controller_leaderboard_opened` and `controller_leaderboard_submitted` (score only), plus once-per-visit `controller_feature_used` with `feature=leaderboard`. Nicknames and player identifiers are not analytics properties.
+
+Tests cover persistent reads, round ownership and expiry, invalid inputs, idempotent retries, concurrent writes, ranking, personal-best retention, board size, rate limits, HTTP request validation, and offline client behavior.

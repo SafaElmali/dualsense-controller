@@ -5,9 +5,13 @@
   "description": "Interactive PS5 DualSense recreation built with Three.js.",
   "type": "module",
   "scripts": {
-    "test": "node --test tests/*.test.mjs"
+    "test": "node --test tests/*.test.mjs",
+    "build": "node scripts/build.mjs"
   },
   "engines": {
     "node": ">=20"
+  },
+  "dependencies": {
+    "@netlify/blobs": "^11.0.3"
   }
 }
