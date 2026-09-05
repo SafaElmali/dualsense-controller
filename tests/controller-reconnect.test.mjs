@@ -2,6 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { AdaptiveTriggers } from '../controller/adaptive-triggers.js';
 import { TouchpadInput } from '../controller/touchpad-input.js';
+import { BatteryInput } from '../controller/battery-input.js';
 
 function device() {
   return {
@@ -62,4 +63,23 @@ test('rechecking an active connection preserves effects and a deliberate touchpa
   await service.reconnect(); await service.setEnabled(true); touchpad.setEnabled(false);
   const count = pad.reports.length; assert.equal(await service.reconnect(), true);
   assert.equal(service.active, true); assert.equal(touchpad.enabled, false); assert.equal(pad.reports.length, count);
+});
+
+test('restoring battery access works with touchpad Off and reads the first report after reconnect', async () => {
+  const pad = device(), readings = [], touches = [];
+  const battery = new BatteryInput(reading => readings.push(reading));
+  const touchpad = new TouchpadInput(points => touches.push(points));
+  touchpad.setEnabled(false);
+  const service = setup([pad], state => { battery.attach(state.device); void touchpad.attach(state.device); });
+  const report = level => {
+    const data = new Uint8Array(63); data[32] = 1; data[33] = 200; data[36] = 128; data[52] = level;
+    for (const listener of pad.listeners) listener({ device: pad, reportId: 1, data: new DataView(data.buffer) });
+  };
+  await service.reconnect(); report(0x19);
+  assert.deepEqual(readings.at(-1), { level: 95, status: 'charging' });
+  assert.equal(touchpad.enabled, false); assert.ok(touches.every(points => points.length === 0));
+  await service.disconnect(); assert.equal(readings.at(-1), null);
+  await service.reconnect(); report(0x07);
+  assert.deepEqual(readings.at(-1), { level: 75, status: 'discharging' });
+  assert.equal(service.active, false); assert.equal(touchpad.enabled, false);
 });

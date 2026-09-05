@@ -107,7 +107,10 @@ const battery = new BatteryInput(reading => {
   renderBattery();
   if (reading?.level != null) analytics.featureAction('battery', 'reading_available');
 });
-function renderBattery() { batteryView.setBusy(triggerBusy || !!range?.connecting); }
+function renderBattery() {
+  batteryView.setGamepadConnected(gamepadIndex !== null);
+  batteryView.setBusy(triggerBusy || !!range?.connecting);
+}
 $('battery-connect').addEventListener('click', async () => {
   if (triggerBusy || range?.connecting) return;
   $('battery-tool').classList.remove('battery-details-dismissed');
@@ -507,8 +510,10 @@ function discoverPad(){
   const pad=gamepads().find(Boolean),next=pad?.index??null;if(next===gamepadIndex)return;
   input.releaseSource('gamepad');gamepadIndex=next;
   $('mode-label').textContent=pad?'Controller connected':'Virtual controller';
-  $('connect-note').textContent=pad?(pad.mapping==='standard'?'Your controller is connected. All inputs are live.':'This controller uses a custom layout. Use the on-screen controls.'):'Connect your controller and press any button to mirror it here.';
+  $('connect-note').textContent=pad?(pad.mapping==='standard'?'Your controller is connected. Buttons and sticks are live.':'This controller uses a custom layout. Use the on-screen controls.'):'Connect your controller and press any button to mirror it here.';
+  renderBattery();
   if(pad)analytics.once('controller_gamepad_connected', { mapping: pad.mapping || 'custom' });
+  if(pad)void restoreControllerConnection();
   if(pad&&!gamepadFrame)gamepadFrame=requestAnimationFrame(pollPad);
   if(!pad){cancelAnimationFrame(gamepadFrame);gamepadFrame=0;}
 }
@@ -524,8 +529,8 @@ function pollPad(){
 }
 window.addEventListener('gamepadconnected',discoverPad);window.addEventListener('gamepaddisconnected',discoverPad);
 
-async function restoreTouchpad() {
-  if (!navigator.hid?.getDevices || !window.isSecureContext || document.hidden || triggerBusy || range?.connecting || triggers.device || !touchpad.enabled) return;
+async function restoreControllerConnection() {
+  if (!navigator.hid?.getDevices || !window.isSecureContext || document.hidden || triggerBusy || range?.connecting || triggers.device) return;
   triggerBusy = true; renderTouchpad(); renderGyro(); $('enable-triggers').disabled = true;
   try {
     if (await triggers.reconnect()) {
@@ -534,14 +539,20 @@ async function restoreTouchpad() {
     }
   } catch {
     analytics.featureAction('touchpad', 'reconnect_failed');
+    batteryView.setNotice('Battery access could not reconnect automatically. Click the battery to choose your controller.');
     sensorStatus('touchpad', 'Automatic connection was unavailable. Click the touchpad icon to connect.');
   } finally {
     triggerBusy = false; renderTouchpad(); renderGyro(); $('enable-triggers').disabled = triggers.active || !navigator.hid;
   }
 }
-navigator.hid?.addEventListener('connect', restoreTouchpad);
-window.addEventListener('focus', restoreTouchpad);
-window.addEventListener('pagehide', () => { navigator.hid?.removeEventListener('connect', restoreTouchpad); window.removeEventListener('focus', restoreTouchpad); });
+navigator.hid?.addEventListener('connect', restoreControllerConnection);
+window.addEventListener('focus', restoreControllerConnection);
+document.addEventListener('visibilitychange', restoreControllerConnection);
+window.addEventListener('pagehide', () => {
+  navigator.hid?.removeEventListener('connect', restoreControllerConnection);
+  window.removeEventListener('focus', restoreControllerConnection);
+  document.removeEventListener('visibilitychange', restoreControllerConnection);
+});
 
 function addAccessibleControls(){
   for(const [id,label]of Object.entries(labels)){
@@ -619,6 +630,9 @@ $('range-leaderboard').addEventListener('click', () => leaderboard.open());
 $('open-drawing').addEventListener('click', () => drawing.open());
 $('open-diagnostics').addEventListener('click', () => diagnostics.open());
 $('open-range').addEventListener('click', () => { range.open(triggerMode.value); analytics.interact('target_practice'); });
+// Battery access must not wait for the 3D model, or depend on touchpad tracking.
+discoverPad();
+void restoreControllerConnection();
 try{
   view=new DualSenseView(canvas,input);
   await view.load(percent=>{$('load-progress').textContent=percent+'%';});
@@ -628,7 +642,5 @@ try{
   view.setView('front');addAccessibleControls();$('loading').hidden=true;$('viewer').setAttribute('aria-busy','false');
   document.querySelectorAll('[data-finish],[data-view]').forEach(button=>button.disabled=false);
   $('auto-view').disabled=false;
-  discoverPad();
 }catch(error){console.error('DualSense 3D:',error);showError('The 3D controller could not load. Reload to try again, or use a browser with WebGL enabled.');}
-void restoreTouchpad();
 window.addEventListener('pagehide',()=>{range?.dispose();drawing?.dispose();diagnostics?.dispose();releaseAll();cancelAnimationFrame(gamepadFrame);view?.dispose();void audio?.close().catch(()=>{});});

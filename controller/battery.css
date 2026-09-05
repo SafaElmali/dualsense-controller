@@ -8,6 +8,7 @@
 .battery-bluetooth,.battery-tool[data-transport=Bluetooth] .battery-usb{display:none}
 .battery-tool[data-transport=Bluetooth] .battery-bluetooth{display:block}
 .battery-percent{min-width:37px;font:600 15px/1 ui-monospace,SFMono-Regular,monospace;letter-spacing:.02em;text-align:right}
+.battery-tool[data-status=permission] .battery-percent{font-size:12px;font-family:inherit;letter-spacing:0}
 .battery-indicator .battery-charge{width:10px;height:17px;fill:currentColor;stroke:none;margin-left:-3px;margin-right:-5px}
 .battery-charge[hidden]{display:block;visibility:hidden}
 .battery-model{display:grid;place-items:center;width:68px;height:38px;margin-left:-3px}

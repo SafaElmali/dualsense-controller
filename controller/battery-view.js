@@ -27,7 +27,7 @@ export class BatteryView {
     this.tooltip = root.querySelector('[role="tooltip"]');
     this.canvas = root.querySelector('canvas');
     this.supported = !!navigator.hid && window.isSecureContext;
-    this.state = { reading: null, connected: false, transport: null };
+    this.state = { reading: null, connected: false, transport: null, gamepadConnected: false };
     this.availableMessage = this.supported ? 'Connect your DualSense to read its battery. Browser permission is required.' : 'Battery readings need desktop Chrome or Edge and controller access.';
     this.update(this.state);
     try { this.createScene(); }
@@ -68,24 +68,30 @@ export class BatteryView {
   }
 
   update(state) {
-    this.state = state;
-    const { reading, connected, transport } = state, level = reading?.level;
+    this.state = { ...this.state, ...state };
+    const { reading, connected, transport, gamepadConnected } = this.state, level = reading?.level;
     const status = reading?.status || (connected ? 'waiting' : 'disconnected');
-    this.root.dataset.status = status;
+    const needsAccess = this.supported && gamepadConnected && !connected;
+    this.root.dataset.status = needsAccess ? 'permission' : status;
     this.root.dataset.transport = transport || '';
-    this.root.querySelector('.battery-percent').textContent = level == null ? '—%' : `${level}%`;
+    this.root.querySelector('.battery-percent').textContent = needsAccess ? 'Enable' : level == null ? '—%' : `${level}%`;
     this.root.querySelector('.battery-charge').toggleAttribute('hidden', status !== 'charging');
     this.root.style.setProperty('--battery-color', level == null ? '#8b929e' : level <= 15 ? '#ff8b86' : level <= 25 ? '#f0cb7e' : '#63e7b3');
     this.root.style.setProperty('--battery-fill', `${level || 0}%`);
-    const message = !connected ? this.availableMessage
+    const message = needsAccess ? 'Buttons and sticks are connected. Click to allow battery access for this site.'
+      : !connected ? this.availableMessage
       : !reading ? 'Connected. Waiting for a battery report. If no reading appears, try a USB data cable.'
       : status === 'error' ? 'The controller reports a charging error. Battery level is unavailable.'
       : level == null ? 'Battery level is unavailable in this controller report.'
       : `${transport} · ${status === 'full' ? 'Fully charged' : status === 'charging' ? 'Charging' : 'On battery'}. ${level}% estimated charge. The controller reports in 10% steps.`;
     this.setNotice(message);
-    this.button.setAttribute('aria-label', !connected ? 'Connect controller for battery status' : `Controller battery: ${level == null ? 'unavailable' : `${level}%`}${status === 'charging' ? ', charging' : status === 'full' ? ', fully charged' : ''}`);
+    this.button.setAttribute('aria-label', needsAccess ? 'Enable controller battery access' : !connected ? 'Connect controller for battery status' : `Controller battery: ${level == null ? 'unavailable' : `${level}%`}${status === 'charging' ? ', charging' : status === 'full' ? ', fully charged' : ''}`);
     this.setBusy(false);
     this.updateGraphic();
+  }
+
+  setGamepadConnected(connected) {
+    if (this.state.gamepadConnected !== connected) this.update({ gamepadConnected: connected });
   }
 
   setNotice(message) { this.tooltip.textContent = message; this.button.title = message; }
