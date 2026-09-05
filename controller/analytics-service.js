@@ -6,13 +6,26 @@ export class ControllerAnalytics {
     trigger_presets: { opened: [], changed: ['mode', 'strength', 'speed_hz'], reset: ['mode'], link_created: ['mode', 'strength', 'speed_hz'], link_copied: ['mode', 'strength', 'speed_hz'], loaded: ['mode', 'strength', 'speed_hz'] },
     diagnostics: { opened: [], connected: [], measurement_started: [], measurement_completed: [], reset: [] },
     target_practice: { started: ['mode'], completed: ['score', 'hits', 'shots', 'weapons'] },
-    touchpad: { enabled: [], disabled: [] },
+    touchpad: { enabled: [], disabled: [], tracking_started: ['input_source'], highlighted: ['source'], reconnected: [], reconnect_failed: [] },
     gyro: { enabled: [], disabled: [], recentered: [] },
-    battery: { connect_requested: [] },
-    appearance: { opened: ['target'], changed: ['target'], reset: ['target'], sync_enabled: [], sync_disabled: [] },
+    battery: { details_opened: [], connect_requested: [], connect_succeeded: [], connect_cancelled: [], connect_failed: [], reading_available: [] },
+    appearance: { opened: ['target'], tab_selected: ['target'], changed: ['target', 'method'], reset: ['target'], sync_requested: [], sync_enabled: [], sync_disabled: [], sync_cancelled: [], sync_failed: ['stage'] },
     leaderboard: { opened: [], submitted: ['score'] },
     scorecard: { exported: ['score', 'hits', 'shots', 'weapons'], export_failed: [] },
   };
+  // Background discoveries and asynchronous outcomes do not extend active time.
+  // User-initiated connection attempts are counted by their requested events.
+  static passiveEvents = new Set([
+    'controller_trigger_presets_loaded',
+    'controller_touchpad_reconnected', 'controller_touchpad_reconnect_failed',
+    'controller_battery_reading_available', 'controller_battery_connect_succeeded',
+    'controller_battery_connect_cancelled', 'controller_battery_connect_failed',
+    'controller_appearance_sync_enabled', 'controller_appearance_sync_cancelled', 'controller_appearance_sync_failed',
+  ]);
+  static onceEvents = new Set([
+    'controller_diagnostics_connected', 'controller_battery_reading_available',
+    'controller_touchpad_reconnected', 'controller_touchpad_reconnect_failed',
+  ]);
 
   constructor(capture = () => {}, now = () => performance.now()) {
     this.capture = capture;
@@ -58,13 +71,17 @@ export class ControllerAnalytics {
       else if (key === 'mode' && ['shooting', 'shotgun', 'lmg', 'smg', 'resistance'].includes(value)) payload.mode = value;
       else if (key === 'input_source' && ['hardware', 'pointer'].includes(value)) payload.input_source = value;
       else if (key === 'target' && ['picker', 'light', 'body'].includes(value)) payload.target = value;
+      else if (key === 'method' && ['preset', 'picker', 'hex'].includes(value)) payload.method = value;
+      else if (key === 'source' && ['toolbar', 'button'].includes(value)) payload.source = value;
+      else if (key === 'stage' && ['connection', 'write'].includes(value)) payload.stage = value;
       else if (['score', 'hits', 'shots', 'strength', 'speed_hz'].includes(key) && Number.isFinite(value)) payload[key] = value;
     }
     if (Number.isFinite(payload.hits) && Number.isFinite(payload.shots)) payload.accuracy = payload.shots ? Math.round(payload.hits / payload.shots * 100) : 0;
-    if (action !== 'loaded') this.interact(feature);
     const event = `controller_${feature}_${action}`;
-    if (feature === 'touchpad_drawing' && action === 'started') this.once(event, payload, event + ':' + payload.input_source);
-    else if (feature === 'diagnostics' && action === 'connected') this.once(event, payload);
+    if (!ControllerAnalytics.passiveEvents.has(event)) this.interact(feature);
+    if ((feature === 'touchpad_drawing' && action === 'started') || (feature === 'touchpad' && action === 'tracking_started')) this.once(event, payload, event + ':' + payload.input_source);
+    else if (feature === 'touchpad' && action === 'highlighted') this.once(event, payload, event + ':' + payload.source);
+    else if (ControllerAnalytics.onceEvents.has(event)) this.once(event, payload);
     else this.send(event, payload);
   }
 

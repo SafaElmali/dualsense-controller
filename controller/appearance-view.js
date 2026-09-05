@@ -39,7 +39,7 @@ export class AppearanceView {
     for (const kind of ['light', 'body']) {
       const input = this.input(kind), hex = document.getElementById(`appearance-${kind}-hex`);
       input.addEventListener('input', () => this.setColor(kind, input.value));
-      input.addEventListener('change', () => this.onAction(kind, 'changed'));
+      input.addEventListener('change', () => this.onAction(kind, 'changed', { method: 'picker' }));
       hex.addEventListener('input', () => {
         const value = hex.value.trim();
         if (/^#?[0-9a-f]{6}$/i.test(value)) this.setColor(kind, '#' + value.replace('#', ''));
@@ -53,10 +53,10 @@ export class AppearanceView {
         const valid = /^#?[0-9a-f]{6}$/i.test(hex.value.trim());
         hex.setAttribute('aria-invalid', String(!valid));
         document.getElementById(`appearance-${kind}-error`).textContent = valid ? '' : 'Use a six-digit hex color, like #A855F7.';
-        if (valid) this.onAction(kind, 'changed');
+        if (valid) this.onAction(kind, 'changed', { method: 'hex' });
       });
       for (const button of document.querySelectorAll(`[data-color-panel="${kind}"] [data-color]`)) button.addEventListener('click', () => {
-        this.setColor(kind, button.dataset.color); this.onAction(kind, 'changed');
+        this.setColor(kind, button.dataset.color); this.onAction(kind, 'changed', { method: 'preset' });
       });
       this.root.querySelector(`[data-color-reset="${kind}"]`).addEventListener('click', () => {
         this.setColor(kind, kind === 'light' ? '#0046ff' : '#e9eaf0'); this.onAction(kind, 'reset');
@@ -77,12 +77,15 @@ export class AppearanceView {
     if (apply) this.onColor(kind, color);
   }
   selectTab(kind) {
+    const next = this.root.querySelector(`[data-color-tab="${kind}"]`);
+    if (!next || next.getAttribute('aria-selected') === 'true') return;
     for (const tab of this.root.querySelectorAll('[data-color-tab]')) {
       const selected = tab.dataset.colorTab === kind;
       tab.setAttribute('aria-selected', String(selected)); tab.tabIndex = selected ? 0 : -1;
     }
     for (const panel of this.root.querySelectorAll('[data-color-panel]')) panel.hidden = panel.dataset.colorPanel !== kind;
     this.place();
+    this.onAction(kind, 'tab_selected');
   }
   open() { this.panel.hidden = false; this.button.setAttribute('aria-expanded', 'true'); this.place(); this.onAction('picker', 'opened'); }
   close(focus = false) { this.panel.hidden = true; this.button.setAttribute('aria-expanded', 'false'); if (focus) this.button.focus(); }

@@ -160,7 +160,7 @@ Finish a target-practice round, then choose **Download scorecard**. The 1200 × 
 
 ### Studio feature analytics
 
-The new tools send explicit PostHog events through the same cookieless client and development/production filters. `controller_feature_used` counts each feature once per page visit: `touchpad_drawing`, `trigger_presets`, `diagnostics`, `scorecard`, and `target_practice`. For feature reach, count unique visitors or feature-used events; action events below can repeat in one visit.
+The tools send explicit PostHog events through the same cookieless client and development/production filters. `controller_feature_used` counts each feature once per page visit: `touchpad_drawing`, `trigger_presets`, `diagnostics`, `scorecard`, `target_practice`, `leaderboard`, `touchpad`, `gyro`, `battery`, and `appearance`. For feature reach, count unique visitors or feature-used events; action events below can repeat in one visit. Automatic sensor discovery does not count as an engaged visit.
 
 | Events | Meaning and properties |
 | --- | --- |
@@ -170,6 +170,13 @@ The new tools send explicit PostHog events through the same cookieless client an
 | `controller_diagnostics_opened`, `_connected`, `_measurement_started`, `_measurement_completed`, `_reset` | Panel use and two-second resting measurements. Connection is counted once per page visit. Canceled measurements do not emit completion. No raw readings or device identifiers are included. |
 | `controller_target_practice_started`, `_completed` | New rounds (resuming does not count as a start), with starting `mode`; completion includes `score`, `hits`, `shots`, `accuracy`, and `weapons`. |
 | `controller_scorecard_exported`, `_export_failed` | Scorecard PNG generated and download requested, or export failure. Success includes the completed round's `score`, `hits`, `shots`, `accuracy`, and `weapons`. |
+| `controller_appearance_opened`, `_tab_selected`, `_changed`, `_reset` | Color picker use with `target=picker`, `light`, or `body`. Committed changes include `method=preset`, `picker`, or `hex`; live slider/color movement does not send an event stream. Selecting the already active tab does not repeat the tab event. |
+| `controller_appearance_sync_requested`, `_sync_enabled`, `_sync_disabled`, `_sync_cancelled`, `_sync_failed` | Physical LED sync attempts, successful initial writes, deliberate stops, chooser cancellation/denial, and failures. Failures include only `stage=connection` or `write`. Successful later color writes do not repeat `_sync_enabled`. |
+| `controller_battery_details_opened`, `_connect_requested`, `_connect_succeeded`, `_connect_cancelled`, `_connect_failed`, `_reading_available` | Battery details clicked while connected, connection attempts and outcomes, and first valid battery report per page visit. Connection success means access was established; it does not guarantee a battery reading. No charge level or charging state is collected. |
+| `controller_touchpad_enabled`, `_disabled`, `_tracking_started`, `_highlighted` | Deliberate toggles; first nonempty finger input per `input_source=hardware` or `pointer`; highlight use per `source=toolbar` or `button`. Tracking and highlights are once per source per page visit, including touch without a physical click. |
+| `controller_touchpad_reconnected`, `_reconnect_failed` | Previously authorized device restored, or restoration threw an error. Each is once per page visit. No saved permission or multiple saved controllers emits neither event. These background events and battery reading availability never extend active time. |
+| `controller_gyro_enabled`, `_disabled`, `_recentered` | Gyro enabled, disabled, and successfully recentered. No motion readings are collected. |
+| `controller_leaderboard_opened`, `_submitted` | Leaderboard opened and score submitted, with `score` only. No nickname or player identifier. |
 
 In this table, each underscored suffix continues the full event prefix in its row. An export event confirms PNG generation and a browser download request; it cannot confirm that the user saved the file to disk or posted it elsewhere. Custom properties use an allowlist; the existing PostHog client also attaches standard page/browser metadata. No artwork, touch coordinates, stick/trigger readings, controller IDs, or raw error messages are sent. Blocked analytics never interrupts the tools.
 

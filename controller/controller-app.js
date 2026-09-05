@@ -55,7 +55,7 @@ const appearance = new AppearanceView({
       $('finish-label').textContent = 'Custom';
     }
   },
-  onAction: (kind, action) => analytics.featureAction('appearance', action, { target: kind }),
+  onAction: (kind, action, properties) => analytics.featureAction('appearance', action, { ...properties, target: kind }),
 });
 function renderLightSync() {
   const syncing = triggers.lightColor !== null;
@@ -65,9 +65,16 @@ function renderLightSync() {
 }
 async function syncLightColor() {
   try {
-    if (await triggers.setLightColor(appearance.input('light').value)) $('light-sync-status').textContent = 'Light synced. New colors update your controller too.';
-  } catch (error) { $('light-sync-status').textContent = error.message; }
-  renderLightSync();
+    if (await triggers.setLightColor(appearance.input('light').value)) {
+      $('light-sync-status').textContent = 'Light synced. New colors update your controller too.';
+      return true;
+    }
+    // Stopping sync or disconnecting can cancel a queued write without an error.
+  } catch (error) {
+    $('light-sync-status').textContent = error.message;
+    analytics.featureAction('appearance', 'sync_failed', { stage: 'write' });
+  } finally { renderLightSync(); }
+  return false;
 }
 $('sync-light').addEventListener('click', async () => {
   if (triggerBusy || range?.connecting) return;
@@ -78,13 +85,19 @@ $('sync-light').addEventListener('click', async () => {
     analytics.featureAction('appearance', 'sync_disabled'); return;
   }
   triggerBusy = true; renderGyro(); renderTouchpad(); $('enable-triggers').disabled = true;
+  analytics.featureAction('appearance', 'sync_requested');
   try {
     await triggers.connect({ enableEffects: false });
     if (triggers.device) {
-      await syncLightColor();
-      if (triggers.lightColor !== null) analytics.featureAction('appearance', 'sync_enabled');
-    } else $('light-sync-status').textContent = 'No controller selected. Click Sync to try again.';
-  } catch (error) { $('light-sync-status').textContent = error.name === 'NotAllowedError' ? 'Controller access was not granted. Click Sync to try again.' : error.message; }
+      if (await syncLightColor()) analytics.featureAction('appearance', 'sync_enabled');
+    } else {
+      $('light-sync-status').textContent = 'No controller selected. Click Sync to try again.';
+      analytics.featureAction('appearance', 'sync_cancelled');
+    }
+  } catch (error) {
+    $('light-sync-status').textContent = error.name === 'NotAllowedError' ? 'Controller access was not granted. Click Sync to try again.' : error.message;
+    analytics.featureAction('appearance', error.name === 'NotAllowedError' ? 'sync_cancelled' : 'sync_failed', { stage: 'connection' });
+  }
   finally { triggerBusy = false; renderGyro(); renderTouchpad(); $('enable-triggers').disabled = triggers.active || !navigator.hid; }
 });
 window.addEventListener('pagehide', () => { clearTimeout(lightColorTimer); triggers.stopLightSync(); appearance.dispose(); });
@@ -92,19 +105,24 @@ const batteryView = new BatteryView($('battery-tool'));
 const battery = new BatteryInput(reading => {
   batteryView.update({ reading, connected: !!battery.device, transport: battery.device ? triggers.transport?.name : null });
   renderBattery();
-  if (reading?.level != null) analytics.once('controller_battery_reading_available');
+  if (reading?.level != null) analytics.featureAction('battery', 'reading_available');
 });
 function renderBattery() { batteryView.setBusy(triggerBusy || !!range?.connecting); }
 $('battery-connect').addEventListener('click', async () => {
   if (triggerBusy || range?.connecting) return;
   $('battery-tool').classList.remove('battery-details-dismissed');
-  if (battery.device) { $('battery-tool').classList.add('battery-details-open'); return; }
+  if (battery.device) {
+    $('battery-tool').classList.add('battery-details-open');
+    analytics.featureAction('battery', 'details_opened'); return;
+  }
   triggerBusy = true; renderBattery(); renderTouchpad(); renderGyro(); $('enable-triggers').disabled = true;
   analytics.featureAction('battery', 'connect_requested');
   try {
     await triggers.connect({ enableEffects: false });
+    analytics.featureAction('battery', triggers.device ? 'connect_succeeded' : 'connect_cancelled');
     if (!triggers.device) batteryView.setNotice('No controller selected. Click the battery to try again.');
   } catch (error) {
+    analytics.featureAction('battery', error.name === 'NotAllowedError' ? 'connect_cancelled' : 'connect_failed');
     batteryView.setNotice(error.name === 'NotAllowedError' ? 'Controller access was not granted. Click the battery to try again.' : error.message);
   } finally {
     triggerBusy = false; renderBattery(); renderTouchpad(); renderGyro();
@@ -136,6 +154,7 @@ function renderTouchpad() {
   $('enable-touchpad').disabled = triggerBusy || !navigator.hid || !window.isSecureContext;
 }
 const touchpad = new TouchpadInput(contacts => {
+  if (contacts.length) analytics.featureAction('touchpad', 'tracking_started', { input_source: 'hardware' });
   view?.setTouchContacts('hardware', contacts);
   drawing?.contacts(contacts);
   inputCamera.observe({ type: 'button', id: 'touch-contact', value: contacts.length ? 1 : 0 });
@@ -290,6 +309,7 @@ $('enable-triggers').addEventListener('click', async () => {
 $('enable-touchpad').addEventListener('click', async () => {
   if (triggerBusy) return;
   view?.highlightTouchpad();
+  if (view?.ready) analytics.featureAction('touchpad', 'highlighted', { source: 'toolbar' });
   if (touchpad.device && touchpad.enabled) { touchpad.setEnabled(false); analytics.featureAction('touchpad', 'disabled'); return; }
   triggerBusy = true; renderTouchpad(); renderGyro(); $('enable-triggers').disabled = true;
   try {
@@ -342,7 +362,10 @@ const input = new ControllerInput(event => {
     $(event.id + '-meter').style.width = event.value * 100 + '%';
   }
   if (event.value && !event.before) {
-    if (event.id === 'touchpad') view?.highlightTouchpad();
+    if (event.id === 'touchpad') {
+      view?.highlightTouchpad();
+      if (view?.ready) analytics.featureAction('touchpad', 'highlighted', { source: 'button' });
+    }
     analytics.interact('button');
     if (!range?.isOpen) tone(event.id); status(labels[event.id]);
     if (event.id === 'ps' && view) { view.lights = !view.lights; status(view.lights ? 'Light bars on' : 'Light bars off'); }
@@ -399,7 +422,10 @@ canvas.addEventListener('pointerdown', event => {
   const pointer = { id, side, startX:event.clientX, startY:event.clientY, moved:false, pose:{...view.pose}, local:side ? view.stickPoint(event.clientX,event.clientY,side) : null };
   pointers.set(event.pointerId, pointer);
   if (side) { input.setAxis(side, 'pointer', 0, 0); status(side === 'left' ? 'Left stick' : 'Right stick'); canvas.style.cursor = 'grabbing'; }
-  else if (id && id !== 'lights') { input.setButton(id, 'pointer:' + event.pointerId, 1); if (id === 'touchpad') view.touch(hit.point); }
+  else if (id && id !== 'lights') {
+    input.setButton(id, 'pointer:' + event.pointerId, 1);
+    if (id === 'touchpad') { view.touch(hit.point); analytics.featureAction('touchpad', 'tracking_started', { input_source: 'pointer' }); }
+  }
   else { setAutoView(false); canvas.style.cursor = 'grabbing'; document.querySelectorAll('[data-view]').forEach(button => button.setAttribute('aria-pressed','false')); }
 });
 canvas.addEventListener('pointermove', event => {
@@ -504,9 +530,10 @@ async function restoreTouchpad() {
   try {
     if (await triggers.reconnect()) {
       touchpad.setPaused(document.hidden || !document.hasFocus() || help.open || !!range?.isOpen || !!diagnostics?.isOpen || !!leaderboard?.isOpen);
-      analytics.once('controller_touchpad_reconnected');
+      analytics.featureAction('touchpad', 'reconnected');
     }
   } catch {
+    analytics.featureAction('touchpad', 'reconnect_failed');
     sensorStatus('touchpad', 'Automatic connection was unavailable. Click the touchpad icon to connect.');
   } finally {
     triggerBusy = false; renderTouchpad(); renderGyro(); $('enable-triggers').disabled = triggers.active || !navigator.hid;

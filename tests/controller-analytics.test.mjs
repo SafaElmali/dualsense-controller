@@ -110,7 +110,7 @@ test('battery connection analytics omit charge readings and hardware identifiers
   const { analytics, events } = harness();
   analytics.featureAction('battery', 'connect_requested', { level: 95, status: 'charging', deviceId: 'private' });
   assert.deepEqual(events.find(event => event.name === 'controller_battery_connect_requested'), { name: 'controller_battery_connect_requested' });
-  analytics.once('controller_battery_reading_available'); analytics.once('controller_battery_reading_available');
+  analytics.featureAction('battery', 'reading_available'); analytics.featureAction('battery', 'reading_available');
   assert.equal(events.filter(event => event.name === 'controller_battery_reading_available').length, 1);
 });
 
@@ -121,4 +121,75 @@ test('appearance analytics separate light and body actions without collecting co
   assert.deepEqual(events.filter(event => event.name === 'controller_appearance_changed'), [
     { name: 'controller_appearance_changed', target: 'light' }, { name: 'controller_appearance_changed', target: 'body' },
   ]);
+});
+
+test('automatic sensor discovery never creates an engaged visit or extends active time', () => {
+  const { analytics, events, advance } = harness();
+  for (let i = 0; i < 200; i++) {
+    analytics.featureAction('battery', 'reading_available', { level: 95 });
+    analytics.featureAction('touchpad', 'reconnected');
+    analytics.featureAction('touchpad', 'reconnect_failed', { error: 'private device error' });
+    advance(100);
+  }
+  analytics.flush();
+  assert.deepEqual(events.map(event => event.name), [
+    'controller_battery_reading_available', 'controller_touchpad_reconnected', 'controller_touchpad_reconnect_failed',
+  ]);
+  analytics.interact('button'); advance(6000);
+  analytics.featureAction('battery', 'reading_available'); advance(6000); analytics.flush();
+  assert.deepEqual(events.filter(event => event.name === 'controller_active_time').map(event => event.seconds), [5]);
+});
+
+test('live touch and highlight reports count reach once per source without collecting sensor data', () => {
+  const { analytics, events } = harness();
+  for (let i = 0; i < 200; i++) {
+    for (const input_source of ['hardware', 'pointer']) analytics.featureAction('touchpad', 'tracking_started', { input_source, contacts: [{ x: 1024, y: 512 }], deviceId: 'private' });
+    for (const source of ['toolbar', 'button']) analytics.featureAction('touchpad', 'highlighted', { source, buttonSource: 'private' });
+  }
+  assert.deepEqual(events.filter(event => event.name === 'controller_touchpad_tracking_started'), [
+    { name: 'controller_touchpad_tracking_started', input_source: 'hardware' },
+    { name: 'controller_touchpad_tracking_started', input_source: 'pointer' },
+  ]);
+  assert.deepEqual(events.filter(event => event.name === 'controller_touchpad_highlighted'), [
+    { name: 'controller_touchpad_highlighted', source: 'toolbar' },
+    { name: 'controller_touchpad_highlighted', source: 'button' },
+  ]);
+  assert.equal(events.filter(event => event.name === 'controller_feature_used').length, 1);
+});
+
+test('appearance tracks committed methods and connection outcomes with bounded properties', () => {
+  const { analytics, events } = harness();
+  analytics.featureAction('appearance', 'tab_selected', { target: 'body', color: '#ffffff' });
+  for (const method of ['preset', 'picker', 'hex']) analytics.featureAction('appearance', 'changed', { target: 'light', method, color: '#ff0000' });
+  analytics.featureAction('appearance', 'changed', { target: 'private', method: 'private' });
+  analytics.featureAction('appearance', 'sync_failed', { stage: 'write', error: 'private device error' });
+  analytics.featureAction('appearance', 'sync_failed', { stage: 'private' });
+  assert.deepEqual(events.filter(event => event.name === 'controller_appearance_changed'), [
+    ...['preset', 'picker', 'hex'].map(method => ({ name: 'controller_appearance_changed', target: 'light', method })),
+    { name: 'controller_appearance_changed' },
+  ]);
+  assert.deepEqual(events.find(event => event.name === 'controller_appearance_tab_selected'), { name: 'controller_appearance_tab_selected', target: 'body' });
+  assert.deepEqual(events.filter(event => event.name === 'controller_appearance_sync_failed'), [
+    { name: 'controller_appearance_sync_failed', stage: 'write' }, { name: 'controller_appearance_sync_failed' },
+  ]);
+});
+
+test('connection outcomes stay separate and do not turn slow or cancelled attempts into extra active time', () => {
+  const { analytics, events, advance } = harness();
+  for (const feature of ['appearance', 'battery']) {
+    const prefix = feature === 'appearance' ? 'sync' : 'connect';
+    analytics.featureAction(feature, prefix + '_requested');
+    advance(60000);
+    for (const action of ['cancelled', 'failed', feature === 'appearance' ? 'enabled' : 'succeeded']) analytics.featureAction(feature, prefix + '_' + action, { error: 'private' });
+    advance(60000); analytics.pause();
+  }
+  assert.deepEqual(events.filter(event => event.name === 'controller_active_time').map(event => event.seconds), [5, 5]);
+  assert.equal(events.filter(event => event.name === 'controller_battery_connect_requested').length, 1);
+  assert.equal(events.filter(event => event.name === 'controller_appearance_sync_requested').length, 1);
+  for (const feature of ['appearance', 'battery']) {
+    const prefix = feature === 'appearance' ? 'sync' : 'connect';
+    for (const action of ['cancelled', 'failed', feature === 'appearance' ? 'enabled' : 'succeeded']) assert.deepEqual(
+      events.find(event => event.name === `controller_${feature}_${prefix}_${action}`), { name: `controller_${feature}_${prefix}_${action}` },
+    );
+  }
 });
