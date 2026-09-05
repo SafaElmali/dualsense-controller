@@ -31,11 +31,16 @@ if (!navigator.hid || !window.isSecureContext) {
 function stopTriggers() {
   void triggers.pause().catch(error => { triggerStatus.textContent = error.message; });
 }
-$('trigger-mode').value = triggers.mode;
+const triggerMode = $('trigger-mode');
+triggerMode.replaceChildren(...Object.entries(AdaptiveTriggers.presets).map(([mode, preset]) => new Option(preset.label, mode)));
+triggerMode.value = triggers.mode;
+function describeTriggerMode() {
+  const preset = AdaptiveTriggers.presetFor(triggerMode.value);
+  $('trigger-mode-description').textContent = `${preset.label}: ${preset.description}`;
+}
+describeTriggerMode();
 $('trigger-mode').addEventListener('change', async event => {
-  $('trigger-mode-description').textContent = event.target.value === 'shooting'
-    ? 'Shooting: pull through the resistance for a sudden release. Let go to fire again.'
-    : 'Resistance: a steady force pushes back as you squeeze either trigger.';
+  describeTriggerMode();
   try { await triggers.setMode(event.target.value); }
   catch (error) { triggerStatus.textContent = error.message; }
 });

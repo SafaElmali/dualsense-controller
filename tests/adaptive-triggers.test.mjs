@@ -66,6 +66,49 @@ test('mode switching updates connected hardware but keeps disabled effects off',
   assert.equal(service.mode, 'resistance');
 });
 
+test('Shotgun has a longer wall and stronger break than Pistol', () => {
+  assert.deepEqual([...AdaptiveTriggers.effect(true, 'shotgun')], [0x25, 0x48, 0, 6, 0, 0, 0, 0, 0, 0, 0]);
+  assert.deepEqual([...AdaptiveTriggers.effect(true, 'shooting')], [0x25, 0x28, 0, 4, 0, 0, 0, 0, 0, 0, 0]);
+});
+
+test('LMG and SMG use native automatic cycling with distinct amplitude and cadence', () => {
+  const lmg = AdaptiveTriggers.effect(true, 'lmg');
+  const smg = AdaptiveTriggers.effect(true, 'smg');
+  assert.deepEqual([...lmg], [0x26, 0xf8, 3, 0, 0xda, 0xb6, 0x2d, 0, 0, 10, 0]);
+  assert.deepEqual([...smg], [0x26, 0xf8, 3, 0, 0x24, 0x49, 0x12, 0, 0, 18, 0]);
+  // Independent Python zlib fixtures for active Bluetooth output, sequence zero.
+  for (const [mode, crc] of [['lmg', 0x04097a3a], ['smg', 0xc612d1ca]]) {
+    const packet = AdaptiveTriggers.packet(AdaptiveTriggers.transportFor(device(0x31, 77)), true, 0, mode);
+    assert.equal(new DataView(packet.buffer).getUint32(73, true), crc);
+  }
+  for (const effect of [lmg, smg]) {
+    const view = new DataView(effect.buffer);
+    // Only the pulled portion is active, so relaxed triggers do not cycle.
+    for (let zone = 0; zone < 3; zone++) assert.equal((view.getUint16(1, true) >> zone) & 1, 0);
+    assert.equal(effect[7], 0); assert.equal(effect[8], 0); assert.equal(effect[10], 0);
+  }
+});
+
+test('every preset replaces the previous effect on both triggers and releases with Off', async () => {
+  for (const pad of [device(), device(0x31, 77)]) {
+    const { service } = setup(pad); await service.connect();
+    const offset = service.transport.offset;
+    for (const mode of Object.keys(AdaptiveTriggers.presets)) {
+      await service.setMode(mode);
+      let packet = pad.reports.at(-1).data;
+      assert.deepEqual(packet.slice(offset + 10, offset + 21), AdaptiveTriggers.effect(true, mode));
+      assert.deepEqual(packet.slice(offset + 21, offset + 32), AdaptiveTriggers.effect(true, mode));
+      await service.pause();
+      packet = pad.reports.at(-1).data;
+      assert.deepEqual(packet.slice(offset + 10, offset + 21), AdaptiveTriggers.effect(false));
+      assert.deepEqual(packet.slice(offset + 21, offset + 32), AdaptiveTriggers.effect(false));
+      await service.connect();
+    }
+    await service.disconnect();
+    assert.equal(pad.opened, false);
+  }
+});
+
 test('changing modes during a pending Off cannot re-enable the triggers', async () => {
   const { service, pad } = setup(); await service.connect();
   let complete;

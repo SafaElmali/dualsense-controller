@@ -2,6 +2,23 @@
 // See TRIGGER-NOTICES.md for attribution and protocol references.
 export class AdaptiveTriggers {
   static filters = [{ vendorId: 0x054c, productId: 0x0ce6 }, { vendorId: 0x054c, productId: 0x0df2 }];
+  static presets = Object.freeze(Object.fromEntries(Object.entries({
+    shooting: { label: 'Pistol', type: 'weapon', start: 3, end: 5, strength: 5,
+      description: 'A crisp resistance point, then a sudden release. Let go to fire again.' },
+    shotgun: { label: 'Shotgun', type: 'weapon', start: 3, end: 6, strength: 7,
+      description: 'A heavier, longer pull that breaks into a sharp release. Let go between shots.' },
+    lmg: { label: 'LMG', type: 'vibration', start: 3, strength: 6, frequency: 10,
+      description: 'Hold the trigger past the resistance point for a steady rhythm of strong pulses. Let go to stop.' },
+    smg: { label: 'SMG', type: 'vibration', start: 3, strength: 3, frequency: 18,
+      description: 'Hold the trigger down for faster, lighter pulses. Let go to stop.' },
+    resistance: { label: 'Resistance', type: 'feedback', start: 3, strength: 3,
+      description: 'A steady force pushes back as you squeeze either trigger.' },
+  }).map(([name, preset]) => [name, Object.freeze(preset)])));
+
+  static presetFor(mode) {
+    if (!Object.hasOwn(AdaptiveTriggers.presets, mode)) throw new Error('Unknown trigger effect.');
+    return AdaptiveTriggers.presets[mode];
+  }
 
   constructor(hid, onChange = () => {}) {
     this.hid = hid;
@@ -46,21 +63,25 @@ export class AdaptiveTriggers {
     const bytes = new Uint8Array(11);
     bytes[0] = 0x05;
     if (!enabled) return bytes;
-    if (mode === 'shooting') {
-      // Native Weapon: a force-5 wall from zone 3 to 5, then a sudden release.
+    const preset = AdaptiveTriggers.presetFor(mode);
+    const view = new DataView(bytes.buffer);
+    if (preset.type === 'weapon') {
+      // Native Weapon: resist between two zones, then suddenly release.
       // Firmware rearms the effect when the trigger returns before the start zone.
       bytes[0] = 0x25;
-      new DataView(bytes.buffer).setUint16(1, (1 << 3) | (1 << 5), true);
-      bytes[3] = 4;
+      view.setUint16(1, (1 << preset.start) | (1 << preset.end), true);
+      bytes[3] = preset.strength - 1;
       return bytes;
     }
-    if (mode !== 'resistance') throw new Error('Unknown trigger effect.');
-    bytes[0] = 0x21;
-    // Gentle feedback (3 of 8), beginning at zone 3 of 10.
+    // Native Vibration cycles the trigger motor while physically pulled past start.
+    // The controller handles timing and release; no polling or per-shot USB writes.
+    bytes[0] = preset.type === 'vibration' ? 0x26 : 0x21;
     let zones = 0, forces = 0;
-    for (let zone = 3; zone < 10; zone++) { zones |= 1 << zone; forces |= 2 << (zone * 3); }
-    const view = new DataView(bytes.buffer);
+    for (let zone = preset.start; zone < 10; zone++) {
+      zones |= 1 << zone; forces |= (preset.strength - 1) << (zone * 3);
+    }
     view.setUint16(1, zones, true); view.setUint32(3, forces, true);
+    if (preset.type === 'vibration') bytes[9] = preset.frequency;
     return bytes;
   }
 
@@ -100,7 +121,7 @@ export class AdaptiveTriggers {
   }
 
   setMode(mode) {
-    if (!['shooting', 'resistance'].includes(mode)) throw new Error('Unknown trigger effect.');
+    AdaptiveTriggers.presetFor(mode);
     this.mode = mode;
     // Preserve Off, including when a previous write is still in flight.
     return this.setEnabled(this.requested);
@@ -117,10 +138,7 @@ export class AdaptiveTriggers {
         await device.sendReport(transport.reportId, AdaptiveTriggers.packet(transport, effect, this.sequence++, mode));
         if (device !== this.device) return;
         this.active = effect;
-        const instruction = mode === 'shooting'
-          ? 'Pull L2 or R2 through the resistance to feel the shot break. Release to fire again.'
-          : 'Squeeze L2 or R2 to feel steady resistance.';
-        this.update(effect ? `${transport.name} connected. ${instruction}` : 'Trigger effects off. Press Enable to try them again.');
+        this.update(effect ? `${transport.name} connected. ${AdaptiveTriggers.presetFor(mode).label} is active on L2 and R2.` : 'Trigger effects off. Press Enable to try them again.');
       } catch {
         this.requested = false; this.active = false;
         // A failed write may still have reached the device. Attempt an explicit release.
