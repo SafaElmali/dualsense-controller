@@ -166,13 +166,33 @@ export class AdaptiveTriggers {
     this.update('Choose your DualSense in the browser’s device picker.');
     const [device] = await this.hid.requestDevice({ filters: AdaptiveTriggers.filters });
     if (!device || generation !== this.generation) { this.update('No controller selected.'); return; }
+    await this.openDevice(device, generation);
+    if (enableEffects && generation === this.generation && this.device) await this.setEnabled(true);
+  }
+
+  async reconnect() {
+    if (this.device) return true;
+    if (!this.hid?.getDevices) return false;
+    const generation = this.generation;
+    const devices = await this.hid.getDevices();
+    if (generation !== this.generation || this.device) return false;
+    const supported = devices.filter(device => {
+      try { AdaptiveTriggers.transportFor(device); return true; } catch { return false; }
+    });
+    // Only reuse a single previously granted controller; choosing among several
+    // still belongs to the user through the normal device picker.
+    if (supported.length !== 1) return false;
+    await this.openDevice(supported[0], ++this.generation);
+    return this.device === supported[0];
+  }
+
+  async openDevice(device, generation) {
     const transport = AdaptiveTriggers.transportFor(device);
-    await device.open();
-    if (generation !== this.generation) { await device.close(); return; }
+    if (!device.opened) await device.open();
+    if (generation !== this.generation) { if (device !== this.device) await device.close(); return; }
     this.device = device; this.transport = transport; this.sequence = 0;
     // Reset any previous effect before taking control of the triggers.
     await this.setEnabled(false);
-    if (enableEffects && generation === this.generation && this.device) await this.setEnabled(true);
   }
 
   setMode(mode) {

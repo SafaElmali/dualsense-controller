@@ -11,6 +11,7 @@ export class DualSenseView {
     this.pressedColor = new THREE.Color('#f4d878');
     this.touchSources = new Map();
     this.touchMarkers = [];
+    this.touchpadHighlightUntil = 0;
     this.touchRaycaster = new THREE.Raycaster();
     this.shellMaterials = [];
     this.buttonMaterials = [];
@@ -222,6 +223,12 @@ export class DualSenseView {
     }
   }
 
+  highlightTouchpad() {
+    this.touchpadHighlightUntil = performance.now() + 850;
+    const group = this.controls.get('touchpad');
+    if (group) group.userData.glow = 1;
+  }
+
   setLightColor(color) {
     for (const material of this.lightMaterials) {
       material.emissive.set(color);
@@ -341,17 +348,17 @@ export class DualSenseView {
         group.position.z += (rest.z - this.input.button(id) * travel - group.position.z) * blend;
       }
       const buttonId = id === 'left-stick' ? 'l3' : id === 'right-stick' ? 'r3' : id;
-      const pressed = this.input.button(buttonId) > .05 || (id === 'touchpad' && this.touchSources.size > 0);
+      const pressed = this.input.button(buttonId) > .05 || (id === 'touchpad' && (this.touchSources.size > 0 || time < this.touchpadHighlightUntil));
       group.userData.glow = THREE.MathUtils.lerp(group.userData.glow || 0, pressed ? 1 : 0, blend);
       for (const child of group.children) {
         if (!child.userData.restEmissive) continue;
         const glow = child.name.endsWith('-symbol') ? 0 : group.userData.glow;
         const muted = id === 'mute' && this.muted;
-        child.material.color.copy(child.material.userData.restColor).lerp(this.pressedColor, glow * .4);
+        child.material.color.copy(child.material.userData.restColor).lerp(this.pressedColor, glow * (id === 'touchpad' ? .8 : .4));
         child.material.emissive.copy(child.userData.restEmissive);
         if (muted) child.material.emissive.set('#dc6615');
         child.material.emissive.lerp(this.pressedColor, glow);
-        child.material.emissiveIntensity = THREE.MathUtils.lerp(muted ? .7 : child.userData.restEmissiveIntensity, .35, glow);
+        child.material.emissiveIntensity = THREE.MathUtils.lerp(muted ? .7 : child.userData.restEmissiveIntensity, id === 'touchpad' ? .15 : .35, glow);
       }
     }
     for (const material of this.lightMaterials) material.emissiveIntensity = this.lights ? .7 : 0;

@@ -289,6 +289,7 @@ $('enable-triggers').addEventListener('click', async () => {
 });
 $('enable-touchpad').addEventListener('click', async () => {
   if (triggerBusy) return;
+  view?.highlightTouchpad();
   if (touchpad.device && touchpad.enabled) { touchpad.setEnabled(false); analytics.featureAction('touchpad', 'disabled'); return; }
   triggerBusy = true; renderTouchpad(); renderGyro(); $('enable-triggers').disabled = true;
   try {
@@ -341,6 +342,7 @@ const input = new ControllerInput(event => {
     $(event.id + '-meter').style.width = event.value * 100 + '%';
   }
   if (event.value && !event.before) {
+    if (event.id === 'touchpad') view?.highlightTouchpad();
     analytics.interact('button');
     if (!range?.isOpen) tone(event.id); status(labels[event.id]);
     if (event.id === 'ps' && view) { view.lights = !view.lights; status(view.lights ? 'Light bars on' : 'Light bars off'); }
@@ -496,6 +498,24 @@ function pollPad(){
 }
 window.addEventListener('gamepadconnected',discoverPad);window.addEventListener('gamepaddisconnected',discoverPad);
 
+async function restoreTouchpad() {
+  if (!navigator.hid?.getDevices || !window.isSecureContext || document.hidden || triggerBusy || range?.connecting || triggers.device || !touchpad.enabled) return;
+  triggerBusy = true; renderTouchpad(); renderGyro(); $('enable-triggers').disabled = true;
+  try {
+    if (await triggers.reconnect()) {
+      touchpad.setPaused(document.hidden || !document.hasFocus() || help.open || !!range?.isOpen || !!diagnostics?.isOpen || !!leaderboard?.isOpen);
+      analytics.once('controller_touchpad_reconnected');
+    }
+  } catch {
+    sensorStatus('touchpad', 'Automatic connection was unavailable. Click the touchpad icon to connect.');
+  } finally {
+    triggerBusy = false; renderTouchpad(); renderGyro(); $('enable-triggers').disabled = triggers.active || !navigator.hid;
+  }
+}
+navigator.hid?.addEventListener('connect', restoreTouchpad);
+window.addEventListener('focus', restoreTouchpad);
+window.addEventListener('pagehide', () => { navigator.hid?.removeEventListener('connect', restoreTouchpad); window.removeEventListener('focus', restoreTouchpad); });
+
 function addAccessibleControls(){
   for(const [id,label]of Object.entries(labels)){
     const button=document.createElement('button');button.className='mesh-focus';button.setAttribute('aria-label',label);button.setAttribute('aria-pressed','false');button.textContent=label;
@@ -583,4 +603,5 @@ try{
   $('auto-view').disabled=false;
   discoverPad();
 }catch(error){console.error('DualSense 3D:',error);showError('The 3D controller could not load. Reload to try again, or use a browser with WebGL enabled.');}
+void restoreTouchpad();
 window.addEventListener('pagehide',()=>{range?.dispose();drawing?.dispose();diagnostics?.dispose();releaseAll();cancelAnimationFrame(gamepadFrame);view?.dispose();void audio?.close().catch(()=>{});});
