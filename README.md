@@ -17,7 +17,8 @@ Open [localhost:8000](http://localhost:8000).
 - Click or tap the buttons.
 - Drag either analog stick; release to center. A short tap clicks L3 or R3.
 - Hold a trigger and drag upward to vary its pressure.
-- Drag the shell to rotate the controller; scroll to zoom.
+- **Auto** follows your inputs: L2/R2 show a tilted rear view, L1/R1 show the shoulders, and face buttons or sticks show the front. Held triggers take priority so aiming and firing do not flip the camera back and forth. The last angle stays after release. Trigger caps light up while pressed, with live L2/R2 pressure labels in the automatic rear view.
+- Drag the shell to rotate the controller; scroll to zoom. Dragging or choosing a fixed angle pauses Auto. Choose Auto to resume, or Reset to restore the front and Auto. Camera movement respects reduced-motion preferences.
 - Choose Front, Angle, or Back, and switch between White, Midnight Black, and Cosmic Red finishes.
 - Enable optional button sounds or connect a standard-mapped gamepad to mirror its inputs.
 

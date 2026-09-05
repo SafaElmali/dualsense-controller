@@ -8,6 +8,7 @@ export class DualSenseView {
     this.canvas = canvas;
     this.input = input;
     this.controls = new Map();
+    this.pressedColor = new THREE.Color('#468cff');
     this.shellMaterials = [];
     this.buttonMaterials = [];
     this.symbolMaterials = [];
@@ -122,6 +123,13 @@ export class DualSenseView {
       group.position.copy(pivot);
       group.userData.rest = pivot.clone();
       group.userData.surface = new THREE.Vector3(pivot.x, bounds.getCenter(new THREE.Vector3()).y, bounds.max.z);
+      if (id === 'l2' || id === 'r2') {
+        group.userData.surface.z = bounds.min.z;
+        for (const child of group.children) {
+          child.userData.restEmissive = child.material.emissive.clone();
+          child.userData.restEmissiveIntensity = child.material.emissiveIntensity;
+        }
+      }
     }
     const required = ['triangle','circle','cross','square','up','down','left','right','l1','r1','l2','r2','left-stick','right-stick','touchpad','ps','mute','create','options'];
     const missing = required.filter(id => !this.controls.has(id));
@@ -194,9 +202,14 @@ export class DualSenseView {
     for (const material of this.symbolMaterials) material.color.set(palette.symbol);
   }
 
-  setView(view) {
-    this.pose = view === 'front' ? { x: 0, y: 0, z: 0 } : view === 'back' ? { x: .06, y: Math.PI, z: 0 } : { x: .20, y: -.50, z: -.045 };
-    this.zoom = 1; this.resize();
+  setView(view, { resetZoom = true } = {}) {
+    const poses = {
+      front: { x: 0, y: 0, z: 0 }, back: { x: .06, y: Math.PI, z: 0 },
+      angle: { x: .20, y: -.50, z: -.045 },
+      triggers: { x: .75, y: Math.PI, z: 0 }, shoulders: { x: 1.05, y: 0, z: 0 },
+    };
+    this.pose = { ...(poses[view] || poses.front) };
+    if (resetZoom) { this.zoom = 1; this.resize(); }
   }
 
   hit(clientX, clientY) {
@@ -228,7 +241,7 @@ export class DualSenseView {
   projected(id) {
     const group = this.controls.get(id);
     if (!group) return null;
-    const position = this.model.localToWorld(group.userData.surface.clone()).project(this.camera);
+    const position = group.localToWorld(group.userData.surface.clone().sub(group.userData.rest)).project(this.camera);
     return { x: (position.x + 1) / 2 * this.canvas.clientWidth, y: (1 - position.y) / 2 * this.canvas.clientHeight };
   }
 
@@ -238,9 +251,11 @@ export class DualSenseView {
     const dt = Math.min((time - (this.previousTime || time)) / 1000, .05);
     this.previousTime = time;
     const blend = this.reducedMotion.matches ? 1 : 1 - Math.exp(-18 * dt);
-    this.model.rotation.x += (this.pose.x - this.model.rotation.x) * blend;
-    this.model.rotation.y += (this.pose.y - this.model.rotation.y) * blend;
-    this.model.rotation.z += (this.pose.z - this.model.rotation.z) * blend;
+    const cameraBlend = this.reducedMotion.matches ? 1 : 1 - Math.exp(-8 * dt);
+    this.model.rotation.x += (this.pose.x - this.model.rotation.x) * cameraBlend;
+    const turn = this.pose.y - this.model.rotation.y;
+    this.model.rotation.y += Math.atan2(Math.sin(turn), Math.cos(turn)) * cameraBlend;
+    this.model.rotation.z += (this.pose.z - this.model.rotation.z) * cameraBlend;
     for (const [id, group] of this.controls) {
       const rest = group.userData.rest;
       if (!rest) continue;
@@ -253,6 +268,11 @@ export class DualSenseView {
         group.position.z += (targetZ - group.position.z) * blend;
       } else if (id === 'l2' || id === 'r2') {
         group.rotation.x += (-this.input.button(id) * .21 - group.rotation.x) * blend;
+        for (const child of group.children) {
+          const pressed = this.input.button(id) > .05;
+          child.material.emissive.copy(pressed ? this.pressedColor : child.userData.restEmissive);
+          child.material.emissiveIntensity = pressed ? .45 : child.userData.restEmissiveIntensity;
+        }
       } else {
         const travel = id === 'touchpad' ? .016 : ['l1', 'r1'].includes(id) ? .025 : .032;
         group.position.z += (rest.z - this.input.button(id) * travel - group.position.z) * blend;

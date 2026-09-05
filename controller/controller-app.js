@@ -1,6 +1,7 @@
 import { AdaptiveTriggers } from './adaptive-triggers.js';
 import { analytics } from './analytics.js';
 import { ControllerInput } from './input-state.js';
+import { InputCamera } from './input-camera.js';
 import { DualSenseView } from './controller-view.js';
 
 const $ = id => document.getElementById(id);
@@ -15,6 +16,17 @@ const pointers = new Map();
 const accessibleButtons = new Map();
 const timers = new Set();
 let view, audio, sound = false, statusTimer, gamepadIndex = null, gamepadFrame = 0;
+const inputCamera = new InputCamera(angle => {
+  // Keep a dragged control under the pointer until the gesture ends.
+  if (!view?.ready || pointers.size) return;
+  view.setView(angle, { resetZoom: false });
+  document.querySelectorAll('[data-view]').forEach(button => button.setAttribute('aria-pressed', 'false'));
+});
+function setAutoView(enabled) {
+  inputCamera.setEnabled(enabled);
+  $('auto-view').setAttribute('aria-pressed', String(enabled));
+}
+$('auto-view').addEventListener('click', () => setAutoView(!inputCamera.enabled));
 
 const triggerStatus = $('trigger-effect-status');
 let triggerBusy = false;
@@ -81,6 +93,7 @@ function tone(id) {
 }
 
 const input = new ControllerInput(event => {
+  inputCamera.observe(event);
   if (event.type === 'axis') {
     if (Math.hypot(event.x, event.y) > .1) analytics.interact('stick');
     for (const axis of ['x','y']) $(event.side + '-' + axis).textContent = (Math.abs(event[axis]) < .005 ? 0 : event[axis]).toFixed(2);
@@ -144,7 +157,7 @@ canvas.addEventListener('pointerdown', event => {
   pointers.set(event.pointerId, pointer);
   if (side) { input.setAxis(side, 'pointer', 0, 0); status(side === 'left' ? 'Left stick' : 'Right stick'); canvas.style.cursor = 'grabbing'; }
   else if (id && id !== 'lights') { input.setButton(id, 'pointer:' + event.pointerId, 1); if (id === 'touchpad') view.touch(hit.point); }
-  else { canvas.style.cursor = 'grabbing'; document.querySelectorAll('[data-view]').forEach(button => button.setAttribute('aria-pressed','false')); }
+  else { setAutoView(false); canvas.style.cursor = 'grabbing'; document.querySelectorAll('[data-view]').forEach(button => button.setAttribute('aria-pressed','false')); }
 });
 canvas.addEventListener('pointermove', event => {
   if (!view?.ready) return;
@@ -179,6 +192,7 @@ function releasePointer(event, cancelled = false) {
       input.setButton(id,'tap',1); later(()=>input.setButton(id,'tap',0),120);
     } else status('Stick centered',false);
   } else if (pointer.id) input.setButton(pointer.id,'pointer:'+event.pointerId,0);
+  if (inputCamera.enabled && !pointers.size) inputCamera.setEnabled(true);
   canvas.style.cursor='grab';
 }
 canvas.addEventListener('pointerup', event=>releasePointer(event));
@@ -189,7 +203,7 @@ canvas.addEventListener('wheel',event=>{if(!view?.ready)return;event.preventDefa
 canvas.addEventListener('webglcontextlost',event=>{event.preventDefault();releaseAll();if(view)view.contextLost=true;showError('The 3D view was interrupted. Reload it to continue.');});
 
 for (const button of document.querySelectorAll('[data-view]')) button.addEventListener('click',()=>{
-  if(!view?.ready)return;releaseAll();view.setView(button.dataset.view);analytics.interact('view');
+  if(!view?.ready)return;setAutoView(false);releaseAll();view.setView(button.dataset.view);analytics.interact('view');
   document.querySelectorAll('[data-view]').forEach(el=>el.setAttribute('aria-pressed',String(el===button)));
 });
 for (const button of document.querySelectorAll('[data-finish]')) button.addEventListener('click',()=>{
@@ -205,7 +219,7 @@ $('sound').addEventListener('click',()=>{
 $('reset').addEventListener('click',()=>{
   stopTriggers();
   releaseAll();if(view){view.lights=true;view.muted=false;view.setView('front');}
-  document.querySelectorAll('[data-view]').forEach(button=>button.setAttribute('aria-pressed',String(button.dataset.view==='front')));
+  inputCamera.reset();$('auto-view').setAttribute('aria-pressed','true');
   status('Controller reset',false);$('announcement').textContent='Controller reset. Sticks centered and front view restored.';
 });
 $('show-help').addEventListener('click',()=>{stopTriggers();releaseAll();help.showModal();});
@@ -246,6 +260,16 @@ function addAccessibleControls(){
     button.addEventListener('click',event=>{if(event.detail===0){input.setButton(id,'assistive',1);later(()=>input.setButton(id,'assistive',0),130);}});
   }
   view.onRender=()=>{
+    for (const id of ['l2', 'r2']) {
+      const tag = $(id + '-tag');
+      const amount = input.button(id);
+      tag.hidden = !inputCamera.enabled || inputCamera.view !== 'triggers';
+      if (tag.hidden) continue;
+      const point = view.projected(id);
+      if (point) { tag.style.left = point.x + 'px'; tag.style.top = point.y + 'px'; }
+      tag.textContent = id.toUpperCase() + ' · ' + Math.round(amount * 100) + '%';
+      tag.classList.toggle('active', amount > .05);
+    }
     const button=document.activeElement;
     if(!button?.classList.contains('mesh-focus'))return;
     const id=[...accessibleButtons].find(([,el])=>el===button)?.[0];
@@ -260,6 +284,7 @@ try{
   analytics.once('controller_loaded');
   view.setView('front');addAccessibleControls();$('loading').hidden=true;$('viewer').setAttribute('aria-busy','false');
   document.querySelectorAll('[data-finish],[data-view]').forEach(button=>button.disabled=false);
+  $('auto-view').disabled=false;
   discoverPad();
 }catch(error){console.error('DualSense 3D:',error);showError('The 3D controller could not load. Reload to try again, or use a browser with WebGL enabled.');}
 window.addEventListener('pagehide',()=>{releaseAll();cancelAnimationFrame(gamepadFrame);view?.dispose();void audio?.close().catch(()=>{});});
