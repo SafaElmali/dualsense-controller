@@ -212,6 +212,22 @@ export class DualSenseView {
         if (material.userData.restColor) material.userData.restColor.copy(material.color);
       }
     }
+    return palette.shell;
+  }
+
+  setBodyColor(color) {
+    for (const material of this.shellMaterials) {
+      material.color.set(color);
+      if (material.userData.restColor) material.userData.restColor.copy(material.color);
+    }
+  }
+
+  setLightColor(color) {
+    for (const material of this.lightMaterials) {
+      material.emissive.set(color);
+      material.color.copy(material.emissive).multiplyScalar(.55);
+    }
+    this.lights = true;
   }
 
   setView(view, { resetZoom = true } = {}) {

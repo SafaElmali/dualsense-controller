@@ -101,6 +101,14 @@ The feature sends only adaptive-trigger output fields, with no audio, rumble, li
 
 Protocol references and the adapted trigger encoder's license are in [controller/TRIGGER-NOTICES.md](controller/TRIGGER-NOTICES.md).
 
+## Controller colors
+
+Click the colored circle beside the 3D controller to open **Make it yours**. The **Light** tab changes the glow around the touchpad; **Body** changes the 3D shell, including the touchpad surface. Each has six quick colors, a native custom color picker, a six-digit hex field, and its own reset. The two colors are independent. The existing finish swatches still apply their full shell/button palette and update the Body picker. Colors last for this page visit.
+
+**Sync controller light** connects a physical DualSense through WebHID (desktop Chrome or Edge) and sends the chosen RGB light color without enabling trigger effects. Subsequent Light changes sync after a short debounce. **Stop light sync** stops sending new colors; the physical LEDs keep their last color. Disconnecting clears sync, so reconnecting requires enabling it again. Body coloring is visual only. Changing the shell never prompts for hardware permission.
+
+LED setup and color reports share the controller's existing serialized output queue and Bluetooth sequence/CRC. They enable only lightbar fields; trigger, audio, microphone, rumble, and player-indicator fields remain untouched. A failed LED write stops light sync without changing the trigger state. PostHog counts picker opens, committed light/body color changes, resets, and sync on/off; it receives neither RGB values nor device identifiers.
+
 ## Controller battery
 
 The header has a beveled Three.js battery, charge percentage, USB/Bluetooth icon, and a lightning bolt while the controller reports charging. Click the battery to grant controller access in desktop Chrome or Edge. It also starts reading automatically when touchpad, gyro, or adaptive triggers establish the shared WebHID connection. Reading the battery does not enable trigger effects. Hover, focus, or tap the badge for connection and charging details.

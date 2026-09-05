@@ -9,6 +9,7 @@ export class ControllerAnalytics {
     touchpad: { enabled: [], disabled: [] },
     gyro: { enabled: [], disabled: [], recentered: [] },
     battery: { connect_requested: [] },
+    appearance: { opened: ['target'], changed: ['target'], reset: ['target'], sync_enabled: [], sync_disabled: [] },
     leaderboard: { opened: [], submitted: ['score'] },
     scorecard: { exported: ['score', 'hits', 'shots', 'weapons'], export_failed: [] },
   };
@@ -56,6 +57,7 @@ export class ControllerAnalytics {
       if (key === 'weapons' && Array.isArray(value)) payload.weapons = value.filter(mode => ['shooting', 'shotgun', 'lmg', 'smg'].includes(mode));
       else if (key === 'mode' && ['shooting', 'shotgun', 'lmg', 'smg', 'resistance'].includes(value)) payload.mode = value;
       else if (key === 'input_source' && ['hardware', 'pointer'].includes(value)) payload.input_source = value;
+      else if (key === 'target' && ['picker', 'light', 'body'].includes(value)) payload.target = value;
       else if (['score', 'hits', 'shots', 'strength', 'speed_hz'].includes(key) && Number.isFinite(value)) payload[key] = value;
     }
     if (Number.isFinite(payload.hits) && Number.isFinite(payload.shots)) payload.accuracy = payload.shots ? Math.round(payload.hits / payload.shots * 100) : 0;

@@ -113,3 +113,12 @@ test('battery connection analytics omit charge readings and hardware identifiers
   analytics.once('controller_battery_reading_available'); analytics.once('controller_battery_reading_available');
   assert.equal(events.filter(event => event.name === 'controller_battery_reading_available').length, 1);
 });
+
+test('appearance analytics separate light and body actions without collecting color or device data', () => {
+  const { analytics, events } = harness();
+  analytics.featureAction('appearance', 'changed', { target: 'light', color: '#ff0000', device: 'private' });
+  analytics.featureAction('appearance', 'changed', { target: 'body', color: '#ffffff' });
+  assert.deepEqual(events.filter(event => event.name === 'controller_appearance_changed'), [
+    { name: 'controller_appearance_changed', target: 'light' }, { name: 'controller_appearance_changed', target: 'body' },
+  ]);
+});

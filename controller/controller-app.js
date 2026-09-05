@@ -5,6 +5,7 @@ import { InputCamera } from './input-camera.js';
 import { GyroInput } from './gyro-input.js';
 import { BatteryInput } from './battery-input.js';
 import { BatteryView } from './battery-view.js';
+import { AppearanceView } from './appearance-view.js';
 import { TouchpadInput } from './touchpad-input.js';
 import { DualSenseView } from './controller-view.js';
 import { TouchDrawingView } from './touch-drawing-view.js';
@@ -39,6 +40,54 @@ $('auto-view').addEventListener('click', () => setAutoView(!inputCamera.enabled)
 const leaderboardClient = new LeaderboardClient();
 const triggerStatus = $('trigger-effect-status');
 let triggerBusy = false, sensorNoticeTimer;
+let lightColorTimer;
+const appearance = new AppearanceView({
+  onColor: (kind, color) => {
+    if (kind === 'light') {
+      view?.setLightColor(color);
+      if (triggers.lightColor !== null) {
+        clearTimeout(lightColorTimer);
+        lightColorTimer = setTimeout(() => { if (triggers.lightColor !== null) void syncLightColor(); }, 80);
+      }
+    } else {
+      view?.setBodyColor(color);
+      document.querySelectorAll('[data-finish]').forEach(button => button.setAttribute('aria-pressed', 'false'));
+      $('finish-label').textContent = 'Custom';
+    }
+  },
+  onAction: (kind, action) => analytics.featureAction('appearance', action, { target: kind }),
+});
+function renderLightSync() {
+  const syncing = triggers.lightColor !== null;
+  $('sync-light').disabled = triggerBusy || !!range?.connecting || !navigator.hid || !window.isSecureContext;
+  $('sync-light').setAttribute('aria-pressed', String(syncing));
+  $('sync-light').textContent = syncing ? 'Stop light sync' : 'Sync controller light ↗';
+}
+async function syncLightColor() {
+  try {
+    if (await triggers.setLightColor(appearance.input('light').value)) $('light-sync-status').textContent = 'Light synced. New colors update your controller too.';
+  } catch (error) { $('light-sync-status').textContent = error.message; }
+  renderLightSync();
+}
+$('sync-light').addEventListener('click', async () => {
+  if (triggerBusy || range?.connecting) return;
+  clearTimeout(lightColorTimer);
+  if (triggers.lightColor !== null) {
+    triggers.stopLightSync(); renderLightSync();
+    $('light-sync-status').textContent = 'Sync off. Your controller keeps its last color.';
+    analytics.featureAction('appearance', 'sync_disabled'); return;
+  }
+  triggerBusy = true; renderGyro(); renderTouchpad(); $('enable-triggers').disabled = true;
+  try {
+    await triggers.connect({ enableEffects: false });
+    if (triggers.device) {
+      await syncLightColor();
+      if (triggers.lightColor !== null) analytics.featureAction('appearance', 'sync_enabled');
+    } else $('light-sync-status').textContent = 'No controller selected. Click Sync to try again.';
+  } catch (error) { $('light-sync-status').textContent = error.name === 'NotAllowedError' ? 'Controller access was not granted. Click Sync to try again.' : error.message; }
+  finally { triggerBusy = false; renderGyro(); renderTouchpad(); $('enable-triggers').disabled = triggers.active || !navigator.hid; }
+});
+window.addEventListener('pagehide', () => { clearTimeout(lightColorTimer); triggers.stopLightSync(); appearance.dispose(); });
 const batteryView = new BatteryView($('battery-tool'));
 const battery = new BatteryInput(reading => {
   batteryView.update({ reading, connected: !!battery.device, transport: battery.device ? triggers.transport?.name : null });
@@ -107,6 +156,7 @@ const gyro = new GyroInput(motion => {
 }, message => sensorStatus('gyro', message));
 function renderGyro() {
   renderBattery();
+  renderLightSync();
   view?.setGyroEnabled(gyro.enabled);
   $('auto-view').disabled = gyro.enabled || !view?.ready;
   $('auto-view').title = gyro.enabled ? 'Turn gyro off to follow button presses' : 'Follow the controls you use';
@@ -154,8 +204,10 @@ const triggers = new AdaptiveTriggers(navigator.hid, state => {
   $('disable-triggers').disabled = !state.connected;
   $('enable-triggers').textContent = state.active ? 'Trigger effects enabled' : 'Enable trigger effects';
   $('enable-triggers').disabled = triggerBusy || state.active || !navigator.hid;
+  if (!state.connected) $('light-sync-status').textContent = 'Connect your DualSense to sync its light.';
 });
 if (!navigator.hid || !window.isSecureContext) {
+  $('light-sync-status').textContent = 'Physical light sync needs desktop Chrome or Edge. You can still style the 3D controller.';
   renderGyro(); sensorStatus('gyro', 'Use desktop Chrome or Edge to enable physical gyro input.');
   $('enable-triggers').disabled = true;
   $('enable-touchpad').disabled = true;
@@ -399,7 +451,7 @@ for (const button of document.querySelectorAll('[data-view]')) button.addEventLi
   document.querySelectorAll('[data-view]').forEach(el=>el.setAttribute('aria-pressed',String(el===button)));
 });
 for (const button of document.querySelectorAll('[data-finish]')) button.addEventListener('click',()=>{
-  if(!view?.ready)return;view.setFinish(button.dataset.finish);analytics.finish(button.dataset.finish);
+  if(!view?.ready)return;appearance.setColor('body',view.setFinish(button.dataset.finish),false);analytics.finish(button.dataset.finish);
   document.querySelectorAll('[data-finish]').forEach(el=>el.setAttribute('aria-pressed',String(el===button)));
   const name={white:'White',black:'Midnight Black',red:'Cosmic Red'}[button.dataset.finish];
   $('finish-label').textContent=name;$('announcement').textContent=name+' selected';
@@ -523,6 +575,8 @@ $('open-range').addEventListener('click', () => { range.open(triggerMode.value);
 try{
   view=new DualSenseView(canvas,input);
   await view.load(percent=>{$('load-progress').textContent=percent+'%';});
+  view.setLightColor(appearance.input('light').value);
+  $('open-appearance').disabled = false;
   analytics.once('controller_loaded');
   view.setView('front');addAccessibleControls();$('loading').hidden=true;$('viewer').setAttribute('aria-busy','false');
   document.querySelectorAll('[data-finish],[data-view]').forEach(button=>button.disabled=false);

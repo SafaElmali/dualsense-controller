@@ -38,9 +38,12 @@ export class AdaptiveTriggers {
     this.generation = 0;
     this.sequence = 0;
     this.queue = Promise.resolve();
+    this.lightColor = null;
+    this.lightConfiguredDevice = null;
     this.onDisconnect = ({ device }) => {
       if (device !== this.device) return;
       this.generation++; this.device = null; this.requested = false; this.active = false;
+      this.stopLightSync(); this.lightConfiguredDevice = null;
       this.update('Controller disconnected. Connect it again to enable trigger effects.');
     };
     hid?.addEventListener('disconnect', this.onDisconnect);
@@ -99,6 +102,24 @@ export class AdaptiveTriggers {
     bytes[offset] = 0x0c;
     bytes.set(AdaptiveTriggers.effect(enabled, mode, tuning), offset + 10); // R2
     bytes.set(AdaptiveTriggers.effect(enabled, mode, tuning), offset + 21); // L2
+    return AdaptiveTriggers.frame(transport, bytes, sequence);
+  }
+
+  static lightPacket(transport, color, sequence = 0, setup = false) {
+    if (!/^#[0-9a-f]{6}$/i.test(color)) throw new Error('Choose a valid six-digit light color.');
+    const bytes = new Uint8Array(transport.length), offset = transport.offset;
+    if (setup) {
+      // Exit the firmware's startup light animation before setting RGB.
+      bytes[offset + 38] = 0x02;
+      bytes[offset + 41] = 0x02;
+    } else {
+      bytes[offset + 1] = 0x04; // RGB lightbar only; trigger and audio flags stay clear.
+      bytes.set([1, 3, 5].map(start => Number.parseInt(color.slice(start, start + 2), 16)), offset + 44);
+    }
+    return AdaptiveTriggers.frame(transport, bytes, sequence);
+  }
+
+  static frame(transport, bytes, sequence) {
     if (transport.reportId === 0x31) {
       bytes[0] = (sequence & 15) << 4; bytes[1] = 0x10;
       let crc = 0xffffffff;
@@ -110,6 +131,33 @@ export class AdaptiveTriggers {
     }
     return bytes;
   }
+
+  setLightColor(color) {
+    if (!/^#[0-9a-f]{6}$/i.test(color)) throw new Error('Choose a valid six-digit light color.');
+    const device = this.device, transport = this.transport;
+    if (!device) throw new Error('Connect your DualSense to sync its light.');
+    this.lightColor = color;
+    const operation = this.queue.then(async () => {
+      const available = () => device === this.device && device.opened && this.lightColor !== null;
+      if (!available()) return false;
+      try {
+        if (this.lightConfiguredDevice !== device) {
+          await device.sendReport(transport.reportId, AdaptiveTriggers.lightPacket(transport, this.lightColor, this.sequence++, true));
+          if (!available()) return false;
+          this.lightConfiguredDevice = device;
+        }
+        await device.sendReport(transport.reportId, AdaptiveTriggers.lightPacket(transport, this.lightColor, this.sequence++));
+        return available();
+      } catch {
+        if (device === this.device) { this.stopLightSync(); this.lightConfiguredDevice = null; }
+        throw new Error('Light sync failed. Close other controller apps, then try syncing again.');
+      }
+    });
+    this.queue = operation.catch(() => {});
+    return operation;
+  }
+
+  stopLightSync() { this.lightColor = null; }
 
   async connect({ enableEffects = true } = {}) {
     if (!this.hid) throw new Error('Use desktop Chrome or Edge to enable real trigger effects.');
@@ -173,6 +221,7 @@ export class AdaptiveTriggers {
 
   async disconnect() {
     const device = this.device;
+    this.stopLightSync(); this.lightConfiguredDevice = null;
     await this.pause();
     if (device && device === this.device) {
       await device.close(); this.device = null; this.active = false;
