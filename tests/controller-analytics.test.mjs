@@ -38,3 +38,63 @@ test('analytics failures never interrupt interaction handling', () => {
   const analytics = new ControllerAnalytics(() => { throw new Error('Tracking blocked'); }, () => 0);
   assert.doesNotThrow(() => { analytics.interact('button'); analytics.finish('red'); analytics.pause(); });
 });
+
+test('new features count reach once while deliberate repeated actions remain countable', () => {
+  const { analytics, events } = harness();
+  for (const feature of ['touchpad_drawing', 'trigger_presets', 'diagnostics']) {
+    analytics.featureAction(feature, 'opened'); analytics.featureAction(feature, 'opened');
+  }
+  for (let i = 0; i < 2; i++) analytics.featureAction('scorecard', 'exported', { score: 100, hits: 1, shots: 2, weapons: ['shotgun'] });
+  assert.equal(events.filter(e => e.name === 'controller_feature_used').length, 4);
+  assert.equal(events.filter(e => e.name === 'controller_touchpad_drawing_opened').length, 2);
+  assert.equal(events.filter(e => e.name === 'controller_scorecard_exported').length, 2);
+  assert.equal(events.find(e => e.name === 'controller_scorecard_exported').accuracy, 50);
+});
+
+test('drawing source and diagnostic connection discovery cannot flood analytics', () => {
+  const { analytics, events } = harness();
+  for (let i = 0; i < 100; i++) {
+    analytics.featureAction('touchpad_drawing', 'started', { input_source: 'hardware' });
+    analytics.featureAction('diagnostics', 'connected');
+  }
+  analytics.featureAction('touchpad_drawing', 'started', { input_source: 'pointer' });
+  assert.deepEqual(events.filter(e => e.name === 'controller_touchpad_drawing_started').map(e => e.input_source), ['hardware', 'pointer']);
+  assert.equal(events.filter(e => e.name === 'controller_diagnostics_connected').length, 1);
+});
+
+test('only approved properties are captured and each action keeps its own contract', () => {
+  const { analytics, events } = harness();
+  const privateData = { x: .4, y: .5, axes: [.02], device_id: 'controller serial', drawing: 'image data', url: 'private link', error: 'raw error' };
+  analytics.featureAction('touchpad_drawing', 'exported', privateData);
+  analytics.featureAction('diagnostics', 'measurement_completed', privateData);
+  analytics.featureAction('trigger_presets', 'changed', { ...privateData, mode: 'lmg', strength: 5, speed_hz: 22 });
+  analytics.featureAction('scorecard', 'exported', { ...privateData, score: 250, shots: 0, hits: 0, weapons: ['shotgun', 'private string'] });
+  for (const event of events) for (const key of Object.keys(privateData)) assert.equal(Object.hasOwn(event, key), false);
+  assert.deepEqual(events.find(e => e.name === 'controller_trigger_presets_changed'), { name: 'controller_trigger_presets_changed', mode: 'lmg', strength: 5, speed_hz: 22 });
+  assert.deepEqual(events.find(e => e.name === 'controller_scorecard_exported').weapons, ['shotgun']);
+  assert.equal(events.find(e => e.name === 'controller_scorecard_exported').accuracy, 0);
+  const count = events.length;
+  analytics.featureAction('unknown', 'opened'); analytics.featureAction('scorecard', 'unknown'); analytics.featureAction('__proto__', 'toString');
+  assert.equal(events.length, count);
+});
+
+test('export failures stay separate from successes and blocked tracking never stops new tools', () => {
+  const { analytics, events } = harness();
+  analytics.featureAction('scorecard', 'export_failed'); analytics.featureAction('touchpad_drawing', 'export_failed');
+  assert.equal(events.filter(e => e.name.endsWith('_exported')).length, 0);
+  const blocked = new ControllerAnalytics(() => { throw new Error('Blocked'); });
+  assert.doesNotThrow(() => {
+    blocked.featureAction('touchpad_drawing', 'started', { input_source: 'pointer' });
+    blocked.featureAction('trigger_presets', 'link_created', { mode: 'lmg', strength: 8, speed_hz: 30 });
+    blocked.featureAction('diagnostics', 'measurement_completed');
+    blocked.featureAction('scorecard', 'exported', { score: 100, hits: 1, shots: 1, weapons: ['shooting'] });
+  });
+});
+
+test('arriving at a shared preset does not count as a deliberate interaction', () => {
+  const { analytics, events } = harness();
+  analytics.featureAction('trigger_presets', 'loaded', { mode: 'smg', strength: 3, speed_hz: 18 });
+  assert.deepEqual(events.map(e => e.name), ['controller_trigger_presets_loaded']);
+  analytics.featureAction('trigger_presets', 'changed', { mode: 'smg', strength: 4, speed_hz: 18 });
+  assert.equal(events.filter(e => e.name === 'controller_interacted').length, 1);
+});

@@ -2,19 +2,20 @@ import { TouchDrawing } from './touch-drawing.js';
 import { CanvasDownload } from './canvas-download.js';
 
 export class TouchDrawingView {
-  constructor({ onOpen, onClose, onConnect }) {
+  constructor({ onOpen, onClose, onConnect, onAction = () => {} }) {
+    this.onAction = onAction;
     this.model = new TouchDrawing(); this.onOpen = onOpen; this.onClose = onClose;
     this.dialog = document.getElementById('drawing');
     this.canvas = document.getElementById('drawing-canvas');
     this.pointerContacts = new Map();
     this.$('drawing-close').addEventListener('click', () => this.dialog.close());
     this.dialog.addEventListener('close', () => { this.end(); this.onClose(); });
-    this.$('drawing-clear').addEventListener('click', () => { this.end(); this.model.clear(); this.draw(); this.message('Canvas cleared.'); });
+    this.$('drawing-clear').addEventListener('click', () => { this.end(); this.model.clear(); this.draw(); this.message('Canvas cleared.'); this.onAction('touchpad_drawing', 'cleared'); });
     this.$('drawing-save').addEventListener('click', async () => {
       const exported = document.createElement('canvas'); exported.width = 1200; exported.height = 735;
       this.draw(exported, true);
-      try { await CanvasDownload.save(exported, 'dualsense-touchpad-art.png'); this.message('Your drawing is ready to save.'); }
-      catch (error) { this.message(error.message); }
+      try { await CanvasDownload.save(exported, 'dualsense-touchpad-art.png'); this.message('Your drawing is ready to save.'); this.onAction('touchpad_drawing', 'exported'); }
+      catch (error) { this.message(error.message); this.onAction('touchpad_drawing', 'export_failed'); }
     });
     this.$('drawing-connect').disabled = !navigator.hid;
     this.$('drawing-connect').addEventListener('click', async () => {
@@ -42,7 +43,7 @@ export class TouchDrawingView {
   $(id) { return document.getElementById(id); }
   get isOpen() { return this.dialog.open; }
   message(text) { this.$('drawing-status').textContent = text; }
-  open() { this.onOpen(); this.dialog.showModal(); this.draw(); }
+  open() { this.onOpen(); this.dialog.showModal(); this.draw(); this.onAction('touchpad_drawing', 'opened'); }
   end() {
     this.model.end('hardware'); this.model.end('pointer');
     for (const id of this.pointerContacts.keys()) if (this.canvas.hasPointerCapture(id)) this.canvas.releasePointerCapture(id);
@@ -50,9 +51,11 @@ export class TouchDrawingView {
   }
   contacts(contacts) {
     if (!this.isOpen) return;
+    if (contacts.length && ![...this.model.active.keys()].some(key => key.startsWith('hardware:'))) this.onAction('touchpad_drawing', 'started', { input_source: 'hardware' });
     this.model.contacts('hardware', contacts, this.$('drawing-color').value); this.scheduleDraw();
   }
   point(event) {
+    if (!this.pointerContacts.size) this.onAction('touchpad_drawing', 'started', { input_source: 'pointer' });
     const rect = this.canvas.getBoundingClientRect();
     this.pointerContacts.set(event.pointerId, { id: event.pointerId, x: (event.clientX - rect.left) / rect.width, y: (event.clientY - rect.top) / rect.height });
     this.model.contacts('pointer', [...this.pointerContacts.values()], this.$('drawing-color').value); this.scheduleDraw();

@@ -139,3 +139,20 @@ For a standard-mapped controller, L2 and R2 show current travel and observed min
 ## Shareable scorecards
 
 Finish a target-practice round, then choose **Download scorecard**. The 1200 × 675 PNG includes the score, accuracy, hits/shots, and every weapon actually fired during that round. Switching weapons after completion cannot change the card, and replay cannot change a download already started. Empty rounds explicitly say no shots were fired. Cards are generated locally; there is no account, upload, or public leaderboard.
+
+### Studio feature analytics
+
+The new tools send explicit PostHog events through the same cookieless client and development/production filters. `controller_feature_used` counts each feature once per page visit: `touchpad_drawing`, `trigger_presets`, `diagnostics`, `scorecard`, and `target_practice`. For feature reach, count unique visitors or feature-used events; action events below can repeat in one visit.
+
+| Events | Meaning and properties |
+| --- | --- |
+| `controller_touchpad_drawing_opened`, `_started`, `_cleared`, `_exported`, `_export_failed` | Panel opens, first drawing input, clears, successful PNG generation/download requests, and failed exports. `_started` is once per input source per page visit, with `input_source=hardware` or `pointer`. |
+| `controller_trigger_presets_opened`, `_changed`, `_reset` | Editor opened by the user, committed mode/slider changes, or defaults restored. Changes include `mode`, `strength`, and `speed_hz`; resets include `mode`. Slider movement does not send a per-frame stream. |
+| `controller_trigger_presets_link_created`, `_link_copied`, `_loaded` | Link prepared, successfully copied through the clipboard API or manual copy action, and valid shared preset loaded. Custom properties are `mode`, `strength`, and `speed_hz`. Loading alone does not count as an engaged visit. |
+| `controller_diagnostics_opened`, `_connected`, `_measurement_started`, `_measurement_completed`, `_reset` | Panel use and two-second resting measurements. Connection is counted once per page visit. Canceled measurements do not emit completion. No raw readings or device identifiers are included. |
+| `controller_target_practice_started`, `_completed` | New rounds (resuming does not count as a start), with starting `mode`; completion includes `score`, `hits`, `shots`, `accuracy`, and `weapons`. |
+| `controller_scorecard_exported`, `_export_failed` | Scorecard PNG generated and download requested, or export failure. Success includes the completed round's `score`, `hits`, `shots`, `accuracy`, and `weapons`. |
+
+In this table, each underscored suffix continues the full event prefix in its row. An export event confirms PNG generation and a browser download request; it cannot confirm that the user saved the file to disk or posted it elsewhere. Custom properties use an allowlist; the existing PostHog client also attaches standard page/browser metadata. No artwork, touch coordinates, stick/trigger readings, controller IDs, or raw error messages are sent. Blocked analytics never interrupts the tools.
+
+To verify in PostHog, open **Activity → Events**, filter event names by the prefixes above, and filter `app=dualsense-controller` plus `environment=production`. For development checks use `?analytics_test=1` on localhost and `environment=development`; these are excluded from the production dashboard.

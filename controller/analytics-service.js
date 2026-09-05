@@ -1,5 +1,14 @@
-// Counts meaningful actions once per page visit; never sends raw input streams.
+// Counts feature reach once per page visit and deliberate actions as they happen.
+// Never sends raw input streams.
 export class ControllerAnalytics {
+  static featureActions = {
+    touchpad_drawing: { opened: [], started: ['input_source'], cleared: [], exported: [], export_failed: [] },
+    trigger_presets: { opened: [], changed: ['mode', 'strength', 'speed_hz'], reset: ['mode'], link_created: ['mode', 'strength', 'speed_hz'], link_copied: ['mode', 'strength', 'speed_hz'], loaded: ['mode', 'strength', 'speed_hz'] },
+    diagnostics: { opened: [], connected: [], measurement_started: [], measurement_completed: [], reset: [] },
+    target_practice: { started: ['mode'], completed: ['score', 'hits', 'shots', 'weapons'] },
+    scorecard: { exported: ['score', 'hits', 'shots', 'weapons'], export_failed: [] },
+  };
+
   constructor(capture = () => {}, now = () => performance.now()) {
     this.capture = capture;
     this.now = now;
@@ -29,6 +38,28 @@ export class ControllerAnalytics {
   finish(value) {
     this.interact('finish');
     this.once('controller_finish_selected', { finish: value }, 'finish:' + value);
+  }
+
+  featureAction(feature, action, properties = {}) {
+    if (!Object.hasOwn(ControllerAnalytics.featureActions, feature)) return;
+    const actions = ControllerAnalytics.featureActions[feature];
+    if (!Object.hasOwn(actions, action)) return;
+    // Only the explicitly listed properties leave the browser. Do not forward
+    // model objects, device IDs, URLs, artwork, or input coordinates.
+    const payload = {};
+    for (const key of actions[action]) {
+      const value = properties[key];
+      if (key === 'weapons' && Array.isArray(value)) payload.weapons = value.filter(mode => ['shooting', 'shotgun', 'lmg', 'smg'].includes(mode));
+      else if (key === 'mode' && ['shooting', 'shotgun', 'lmg', 'smg', 'resistance'].includes(value)) payload.mode = value;
+      else if (key === 'input_source' && ['hardware', 'pointer'].includes(value)) payload.input_source = value;
+      else if (['score', 'hits', 'shots', 'strength', 'speed_hz'].includes(key) && Number.isFinite(value)) payload[key] = value;
+    }
+    if (Number.isFinite(payload.hits) && Number.isFinite(payload.shots)) payload.accuracy = payload.shots ? Math.round(payload.hits / payload.shots * 100) : 0;
+    if (action !== 'loaded') this.interact(feature);
+    const event = `controller_${feature}_${action}`;
+    if (feature === 'touchpad_drawing' && action === 'started') this.once(event, payload, event + ':' + payload.input_source);
+    else if (feature === 'diagnostics' && action === 'connected') this.once(event, payload);
+    else this.send(event, payload);
   }
 
   sample() {

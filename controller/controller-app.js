@@ -76,18 +76,29 @@ function describeTuning() {
   $('trigger-speed-label').textContent = $('trigger-speed').disabled ? 'Not used in this mode' : $('trigger-speed').value + ' Hz';
 }
 function tuningValues() { return { strength: Number($('trigger-strength').value), speed: $('trigger-speed').disabled ? 0 : Number($('trigger-speed').value) }; }
+function presetProperties() { const { strength, speed } = tuningValues(); return { mode: triggerMode.value, strength, speed_hz: speed }; }
+document.querySelector('.trigger-custom summary').addEventListener('click', event => {
+  if (!event.currentTarget.parentElement.open) analytics.featureAction('trigger_presets', 'opened');
+});
+$('trigger-link').addEventListener('copy', () => {
+  const setup = AdaptiveTriggers.setup.read($('trigger-link').value);
+  if (setup) analytics.featureAction('trigger_presets', 'link_copied', { mode: setup.mode, strength: setup.strength, speed_hz: setup.speed });
+});
 for (const id of ['trigger-strength', 'trigger-speed']) {
   $(id).addEventListener('input', describeTuning);
-  $(id).addEventListener('change', () => { void triggers.setTuning(tuningValues()).catch(error => { triggerStatus.textContent = error.message; }); });
+  $(id).addEventListener('change', () => { analytics.featureAction('trigger_presets', 'changed', presetProperties()); void triggers.setTuning(tuningValues()).catch(error => { triggerStatus.textContent = error.message; }); });
 }
 $('trigger-defaults').addEventListener('click', () => {
   const pending = triggers.setMode(triggerMode.value); describeTriggerMode();
+  analytics.featureAction('trigger_presets', 'reset', { mode: triggerMode.value });
   void pending.catch(error => { triggerStatus.textContent = error.message; });
 });
 $('trigger-share').addEventListener('click', async () => {
+  const properties = presetProperties();
   const link = AdaptiveTriggers.setup.link(location.href, { mode: triggerMode.value, ...tuningValues() });
   $('trigger-link').value = link; $('trigger-link-wrap').hidden = false;
-  try { await navigator.clipboard.writeText(link); $('trigger-share-status').textContent = 'Preset link copied. Opening it keeps trigger effects off.'; }
+  analytics.featureAction('trigger_presets', 'link_created', properties);
+  try { await navigator.clipboard.writeText(link); analytics.featureAction('trigger_presets', 'link_copied', properties); $('trigger-share-status').textContent = 'Preset link copied. Opening it keeps trigger effects off.'; }
   catch { $('trigger-link').focus(); $('trigger-link').select(); $('trigger-share-status').textContent = 'Copy the selected link to share your preset.'; }
 });
 describeTriggerMode();
@@ -96,12 +107,13 @@ try {
   if (setup) {
     triggerMode.value = setup.mode;
     await triggers.setMode(setup.mode); await triggers.setTuning(setup); describeTriggerMode();
+    analytics.featureAction('trigger_presets', 'loaded', presetProperties());
     $('trigger-share-status').textContent = 'Shared preset loaded. Enable trigger effects to try it.';
     document.querySelector('.trigger-custom').open = true;
   }
 } catch (error) { $('trigger-share-status').textContent = error.message; document.querySelector('.trigger-custom').open = true; }
 $('trigger-mode').addEventListener('change', async event => {
-  try { const pending = triggers.setMode(event.target.value); describeTriggerMode(); await pending; }
+  try { const pending = triggers.setMode(event.target.value); describeTriggerMode(); analytics.featureAction('trigger_presets', 'changed', presetProperties()); await pending; }
   catch (error) { triggerStatus.textContent = error.message; }
 });
 $('enable-triggers').addEventListener('click', async () => {
@@ -350,6 +362,7 @@ function addAccessibleControls(){
 }
 function showError(message){stopTriggers();$('loading').hidden=true;$('load-error').hidden=false;$('error-message').textContent=message;}
 range = new TargetPracticeView({
+  onAction: (feature, action, properties) => analytics.featureAction(feature, action, properties),
   input,
   onOpen: () => { releaseAll(); touchpad.setPaused(true); if (view) view.suspended = true; },
   onClose: () => { if (view) view.suspended = false; touchpad.setPaused(document.hidden || !document.hasFocus()); },
@@ -369,6 +382,7 @@ range = new TargetPracticeView({
 });
 function closeStudioTool() { releaseAll(); if (view) view.suspended = false; touchpad.setPaused(document.hidden || !document.hasFocus()); }
 drawing = new TouchDrawingView({
+  onAction: (feature, action, properties) => analytics.featureAction(feature, action, properties),
   onOpen: () => { stopTriggers(); releaseAll(); if (view) view.suspended = true; touchpad.setPaused(document.hidden || !document.hasFocus()); },
   onClose: closeStudioTool,
   onConnect: async () => {
@@ -377,6 +391,7 @@ drawing = new TouchDrawingView({
   },
 });
 diagnostics = new DiagnosticsView({
+  onAction: (feature, action, properties) => analytics.featureAction(feature, action, properties),
   getPad: () => gamepads()[gamepadIndex] || gamepads().find(Boolean),
   labels: padMap.map(id => labels[id]),
   onOpen: () => { stopTriggers(); releaseAll(); touchpad.setPaused(true); if (view) view.suspended = true; },

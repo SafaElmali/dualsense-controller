@@ -2,7 +2,8 @@ import { Scorecard } from './scorecard.js';
 import { TargetPractice } from './target-practice.js';
 
 export class TargetPracticeView {
-  constructor({ input, onWeapon, onEnableEffects, onStopEffects, effectsActive, onShot, onOpen, onClose }) {
+  constructor({ input, onWeapon, onEnableEffects, onStopEffects, effectsActive, onShot, onOpen, onClose, onAction = () => {} }) {
+    this.onAction = onAction;
     this.input = input; this.onWeapon = onWeapon; this.onEnableEffects = onEnableEffects;
     this.onStopEffects = onStopEffects; this.effectsActive = effectsActive; this.onOpen = onOpen; this.onClose = onClose;
     this.dialog = document.getElementById('range');
@@ -16,8 +17,9 @@ export class TargetPracticeView {
     this.$('range-weapon').replaceChildren(...Object.entries(TargetPractice.weapons).map(([key, weapon]) => new Option(weapon.label, key)));
     this.$('range-weapon').addEventListener('change', event => this.selectWeapon(event.target.value));
     this.$('range-save-card').addEventListener('click', async () => {
-      try { await Scorecard.save(this.lastResult); this.$('range-download-status').textContent = 'Your scorecard is ready to save.'; }
-      catch (error) { this.$('range-download-status').textContent = error.message; }
+      const result = this.lastResult;
+      try { await Scorecard.save(result); this.$('range-download-status').textContent = 'Your scorecard is ready to save.'; this.onAction('scorecard', 'exported', result); }
+      catch (error) { this.$('range-download-status').textContent = error.message; this.onAction('scorecard', 'export_failed'); }
     });
     this.$('range-start').addEventListener('click', () => this.start());
     this.$('range-pause').addEventListener('click', () => this.pause());
@@ -75,7 +77,8 @@ export class TargetPracticeView {
   start() {
     this.release(); this.impacts = []; this.previousTime = 0;
     this.$('range-result').textContent = ''; this.$('range-download-status').textContent = '';
-    if (this.game.state === 'paused') this.game.resume(); else this.game.start();
+    if (this.game.state === 'paused') this.game.resume();
+    else { this.game.start(); this.onAction('target_practice', 'started', { mode: this.game.weapon }); }
     this.game.trigger(this.input.button('r2'));
     this.canvas.focus(); this.update();
   }
@@ -158,6 +161,7 @@ export class TargetPracticeView {
     if (!document.hidden && document.hasFocus()) this.game.step(dt, { ...this.input.axis('right'), pressure: this.input.button('r2') });
     if (wasPlaying && this.game.state === 'finished') {
       this.lastResult = this.game.result();
+      this.onAction('target_practice', 'completed', this.lastResult);
       this.release(); this.onStopEffects();
       this.best = Math.max(this.best, this.game.score);
       try { localStorage.setItem('dualsense-range-best', String(this.best)); } catch { /* Storage is optional. */ }

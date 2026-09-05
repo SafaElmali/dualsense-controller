@@ -1,22 +1,30 @@
 import { ControllerDiagnostics } from './controller-diagnostics.js';
 
 export class DiagnosticsView {
-  constructor({ getPad, onOpen, onClose, labels }) {
+  constructor({ getPad, onOpen, onClose, labels, onAction = () => {} }) {
+    this.onAction = onAction;
     this.model = new ControllerDiagnostics(); this.getPad = getPad; this.onOpen = onOpen; this.onClose = onClose; this.labels = labels;
     this.dialog = document.getElementById('diagnostics'); this.frame = 0;
     this.$('diagnostics-close').addEventListener('click', () => this.dialog.close());
     this.dialog.addEventListener('close', () => { cancelAnimationFrame(this.frame); this.model.cancelMeasure(); this.onClose(); });
-    this.$('diagnostics-reset').addEventListener('click', () => this.model.reset());
-    this.$('diagnostics-measure').addEventListener('click', () => this.model.measure(performance.now()));
+    this.$('diagnostics-reset').addEventListener('click', () => { this.model.reset(); this.onAction('diagnostics', 'reset'); });
+    this.$('diagnostics-measure').addEventListener('click', () => { if (this.model.measure(performance.now())) this.onAction('diagnostics', 'measurement_started'); });
     window.addEventListener('blur', () => this.model.cancelMeasure());
     document.addEventListener('visibilitychange', () => { if (document.hidden) this.model.cancelMeasure(); });
   }
   $(id) { return document.getElementById(id); }
   get isOpen() { return this.dialog.open; }
-  open() { this.model.reset(); this.onOpen(); this.dialog.showModal(); this.animate(performance.now()); }
+  open() { this.model.reset(); this.onOpen(); this.dialog.showModal(); this.onAction('diagnostics', 'opened'); this.animate(performance.now()); }
   animate(time) {
     if (!this.isOpen) return;
-    if (!document.hidden && document.hasFocus()) { const candidate = this.getPad(); const pad = candidate?.connected === false ? null : candidate; this.model.sample(pad, time); this.render(pad, time); }
+    if (!document.hidden && document.hasFocus()) {
+      const candidate = this.getPad(); const pad = candidate?.connected === false ? null : candidate;
+      const measuring = !!this.model.measurement; const previousDevice = this.model.device;
+      this.model.sample(pad, time);
+      if (this.model.device && this.model.device !== previousDevice) this.onAction('diagnostics', 'connected');
+      if (measuring && this.model.center && !this.model.measurement) this.onAction('diagnostics', 'measurement_completed');
+      this.render(pad, time);
+    }
     this.frame = requestAnimationFrame(next => this.animate(next));
   }
   render(pad, time) {
