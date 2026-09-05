@@ -9,11 +9,20 @@
   <link rel="icon" type="image/svg+xml" href="./controller/favicon.svg">
   <link rel="stylesheet" href="./controller/controller.css">
 <link rel="stylesheet" href="./controller/range.css">
+  <link rel="stylesheet" href="./controller/battery.css">
   <script type="importmap">{"imports":{"three":"./controller/vendor/three/three.module.min.js","three/addons/":"./controller/vendor/three/addons/"}}</script>
 </head>
 <body>
 <main>
-  <header><div class="brand"><span class="brand-icon" aria-hidden="true"><svg viewBox="0 0 58 20"><path d="M1 17 9 3l8 14Z"/><circle cx="29" cy="10" r="7"/><path d="m43 3 14 14M57 3 43 17"/></svg></span>PlayStation<span class="edition">/ CONTROLLER STUDIO</span></div><div class="header-actions"><span class="mode"><i></i><span id="mode-label">Virtual controller</span></span><button class="icon-button" id="sound" aria-label="Enable button sounds" aria-pressed="false" title="Button sounds"><svg viewBox="0 0 24 24"><path d="m11 5-6 4H2v6h3l6 4Z"/><path id="sound-lines" d="m16 9 5 6m0-6-5 6"/></svg></button></div></header>
+  <header><div class="brand"><span class="brand-icon" aria-hidden="true"><svg viewBox="0 0 58 20"><path d="M1 17 9 3l8 14Z"/><circle cx="29" cy="10" r="7"/><path d="m43 3 14 14M57 3 43 17"/></svg></span>PlayStation<span class="edition">/ CONTROLLER STUDIO</span></div><div class="header-actions"><span class="mode"><i></i><span id="mode-label">Virtual controller</span></span><div class="battery-tool" id="battery-tool">
+      <button class="battery-indicator" id="battery-connect" type="button" aria-label="Connect controller for battery status" aria-describedby="battery-tooltip">
+        <span class="battery-connection" aria-hidden="true"><svg class="battery-usb" viewBox="0 0 24 24"><path d="M12 20V4m0 0-3 3m3-3 3 3M12 16l-5-4V9m5 4 5-4V6"/><circle cx="12" cy="20" r="1.5"/><circle cx="7" cy="8" r="1.3"/><path d="M15.5 3.5h3v3h-3z"/></svg><svg class="battery-bluetooth" viewBox="0 0 24 24"><path d="m7 7 10 10-5 4V3l5 4L7 17"/></svg></span>
+        <span class="battery-percent">—%</span>
+        <svg class="battery-charge" viewBox="0 0 12 20" aria-hidden="true" hidden><path d="M7 1 1 11h4l-1 8 7-11H7z"/></svg>
+        <span class="battery-model" aria-hidden="true"><canvas></canvas><span class="battery-flat"><i></i></span></span>
+      </button>
+      <span class="battery-tooltip" id="battery-tooltip" role="tooltip">Connect your DualSense to read its battery.</span>
+    </div><button class="icon-button" id="sound" aria-label="Enable button sounds" aria-pressed="false" title="Button sounds"><svg viewBox="0 0 24 24"><path d="m11 5-6 4H2v6h3l6 4Z"/><path id="sound-lines" d="m16 9 5 6m0-6-5 6"/></svg></button></div></header>
   <section class="intro"><div><h1>DualSense.</h1><p>PS5 wireless controller. Every angle, in your hands.</p><button class="range-launch" id="open-range">◎ &nbsp; Play target practice <span>NEW</span></button></div><div class="model"><span>WIRELESS CONTROLLER</span>CFI–ZCT1W / 01</div></section>
   <section class="stage" aria-label="Interactive 3D DualSense controller">
     <div class="view-switch" aria-label="Camera angle"><button id="auto-view" aria-pressed="true" disabled title="Follow the controls you use">Auto</button><button data-view="front" aria-pressed="false" disabled>Front</button><button data-view="angle" aria-pressed="false" disabled>Angle</button><button data-view="back" aria-pressed="false" disabled>Back</button></div>

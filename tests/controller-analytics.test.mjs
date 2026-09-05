@@ -105,3 +105,11 @@ test('leaderboard usage captures scores without nicknames or player identifiers'
   analytics.featureAction('leaderboard', 'submitted', { score: 250, nickname: 'Private nickname', player: 'private player', roundId: 'private round' });
   assert.deepEqual(events.find(event => event.name === 'controller_leaderboard_submitted'), { name: 'controller_leaderboard_submitted', score: 250 });
 });
+
+test('battery connection analytics omit charge readings and hardware identifiers', () => {
+  const { analytics, events } = harness();
+  analytics.featureAction('battery', 'connect_requested', { level: 95, status: 'charging', deviceId: 'private' });
+  assert.deepEqual(events.find(event => event.name === 'controller_battery_connect_requested'), { name: 'controller_battery_connect_requested' });
+  analytics.once('controller_battery_reading_available'); analytics.once('controller_battery_reading_available');
+  assert.equal(events.filter(event => event.name === 'controller_battery_reading_available').length, 1);
+});

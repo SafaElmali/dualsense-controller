@@ -101,6 +101,14 @@ The feature sends only adaptive-trigger output fields, with no audio, rumble, li
 
 Protocol references and the adapted trigger encoder's license are in [controller/TRIGGER-NOTICES.md](controller/TRIGGER-NOTICES.md).
 
+## Controller battery
+
+The header has a beveled Three.js battery, charge percentage, USB/Bluetooth icon, and a lightning bolt while the controller reports charging. Click the battery to grant controller access in desktop Chrome or Edge. It also starts reading automatically when touchpad, gyro, or adaptive triggers establish the shared WebHID connection. Reading the battery does not enable trigger effects. Hover, focus, or tap the badge for connection and charging details.
+
+This is the controller's battery, not the computer's. DualSense reports coarse 10% intervals; the displayed percentage uses the interval midpoint (5%, 15%, … 95%, capped at 100%) following the Linux driver. Unknown readings show **—%** instead of an invented level. Full charge shows 100%; charging faults are identified in the tooltip. Low charge turns amber, then red. Basic Bluetooth packets contain no battery reading; try a USB data cable if the badge keeps waiting. Disconnecting clears the previous reading.
+
+The small 3D scene renders only on reading or size changes, with a CSS battery fallback if WebGL is unavailable. Battery status remains active when touchpad or gyro is toggled off. PostHog counts `controller_battery_connect_requested` and one `controller_battery_reading_available` per page visit; no charge level, hardware identifiers, or sensor packets are transmitted.
+
 ## Touchpad finger tracking
 
 Use the **touchpad icon beside the 3D controller** in desktop Chrome or Edge and select your DualSense. The compact toolbar contains touchpad and gyro toggles plus gyro recentering. Hover or keyboard-focus an icon for its label and connection details; gold indicates an enabled feature. The toolbar sits below the controller on narrow screens.

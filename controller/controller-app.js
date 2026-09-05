@@ -3,6 +3,8 @@ import { analytics } from './analytics.js';
 import { ControllerInput } from './input-state.js';
 import { InputCamera } from './input-camera.js';
 import { GyroInput } from './gyro-input.js';
+import { BatteryInput } from './battery-input.js';
+import { BatteryView } from './battery-view.js';
 import { TouchpadInput } from './touchpad-input.js';
 import { DualSenseView } from './controller-view.js';
 import { TouchDrawingView } from './touch-drawing-view.js';
@@ -37,6 +39,35 @@ $('auto-view').addEventListener('click', () => setAutoView(!inputCamera.enabled)
 const leaderboardClient = new LeaderboardClient();
 const triggerStatus = $('trigger-effect-status');
 let triggerBusy = false, sensorNoticeTimer;
+const batteryView = new BatteryView($('battery-tool'));
+const battery = new BatteryInput(reading => {
+  batteryView.update({ reading, connected: !!battery.device, transport: battery.device ? triggers.transport?.name : null });
+  renderBattery();
+  if (reading?.level != null) analytics.once('controller_battery_reading_available');
+});
+function renderBattery() { batteryView.setBusy(triggerBusy || !!range?.connecting); }
+$('battery-connect').addEventListener('click', async () => {
+  if (triggerBusy || range?.connecting) return;
+  $('battery-tool').classList.remove('battery-details-dismissed');
+  if (battery.device) { $('battery-tool').classList.add('battery-details-open'); return; }
+  triggerBusy = true; renderBattery(); renderTouchpad(); renderGyro(); $('enable-triggers').disabled = true;
+  analytics.featureAction('battery', 'connect_requested');
+  try {
+    await triggers.connect({ enableEffects: false });
+    if (!triggers.device) batteryView.setNotice('No controller selected. Click the battery to try again.');
+  } catch (error) {
+    batteryView.setNotice(error.name === 'NotAllowedError' ? 'Controller access was not granted. Click the battery to try again.' : error.message);
+  } finally {
+    triggerBusy = false; renderBattery(); renderTouchpad(); renderGyro();
+    $('enable-triggers').disabled = triggers.active || !navigator.hid;
+    $('battery-tool').classList.add('battery-details-open');
+  }
+});
+function dismissBatteryDetails() { $('battery-tool').classList.remove('battery-details-open'); $('battery-tool').classList.add('battery-details-dismissed'); }
+document.addEventListener('pointerdown', event => { if (!$('battery-tool').contains(event.target)) dismissBatteryDetails(); });
+$('battery-connect').addEventListener('keydown', event => { if (event.key === 'Escape') dismissBatteryDetails(); });
+for (const event of ['pointerenter', 'focusin']) $('battery-tool').addEventListener(event, () => $('battery-tool').classList.remove('battery-details-dismissed'));
+window.addEventListener('pagehide', () => { battery.attach(null); batteryView.dispose(); });
 function sensorStatus(feature, message) {
   const node = $(feature + '-status'), changed = node.textContent !== message;
   node.textContent = message;
@@ -75,6 +106,7 @@ const gyro = new GyroInput(motion => {
   }
 }, message => sensorStatus('gyro', message));
 function renderGyro() {
+  renderBattery();
   view?.setGyroEnabled(gyro.enabled);
   $('auto-view').disabled = gyro.enabled || !view?.ready;
   $('auto-view').title = gyro.enabled ? 'Turn gyro off to follow button presses' : 'Follow the controls you use';
@@ -115,6 +147,7 @@ const gyroWatch = setInterval(() => {
 }, 1000);
 window.addEventListener('pagehide', () => { clearInterval(gyroWatch); gyro.attach(null); clearTimeout(sensorNoticeTimer); });
 const triggers = new AdaptiveTriggers(navigator.hid, state => {
+  battery.attach(state.device);
   gyro.attach(state.device); renderGyro();
   void touchpad.attach(state.device, triggers.transport?.name === 'Bluetooth');
   triggerStatus.textContent = state.message;
