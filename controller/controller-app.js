@@ -462,7 +462,6 @@ leaderboard = new LeaderboardView({
   onOpen: () => { range?.pause(); stopTriggers(); releaseAll(); touchpad.setPaused(true); if (view) view.suspended = true; },
   onClose: () => { if (view) view.suspended = range?.isOpen; touchpad.setPaused(document.hidden || !document.hasFocus() || range?.isOpen); },
 });
-$('open-leaderboard').addEventListener('click', () => leaderboard.open());
 $('range-leaderboard').addEventListener('click', () => leaderboard.open());
 $('open-drawing').addEventListener('click', () => drawing.open());
 $('open-diagnostics').addEventListener('click', () => diagnostics.open());

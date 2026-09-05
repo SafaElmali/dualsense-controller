@@ -8,12 +8,13 @@
   <title>DualSense — Interactive controller</title>
   <link rel="icon" type="image/svg+xml" href="./controller/favicon.svg">
   <link rel="stylesheet" href="./controller/controller.css">
+<link rel="stylesheet" href="./controller/range.css">
   <script type="importmap">{"imports":{"three":"./controller/vendor/three/three.module.min.js","three/addons/":"./controller/vendor/three/addons/"}}</script>
 </head>
 <body>
 <main>
   <header><div class="brand"><span class="brand-icon" aria-hidden="true"><svg viewBox="0 0 58 20"><path d="M1 17 9 3l8 14Z"/><circle cx="29" cy="10" r="7"/><path d="m43 3 14 14M57 3 43 17"/></svg></span>PlayStation<span class="edition">/ CONTROLLER STUDIO</span></div><div class="header-actions"><span class="mode"><i></i><span id="mode-label">Virtual controller</span></span><button class="icon-button" id="sound" aria-label="Enable button sounds" aria-pressed="false" title="Button sounds"><svg viewBox="0 0 24 24"><path d="m11 5-6 4H2v6h3l6 4Z"/><path id="sound-lines" d="m16 9 5 6m0-6-5 6"/></svg></button></div></header>
-  <section class="intro"><div><h1>DualSense.</h1><p>PS5 wireless controller. Every angle, in your hands.</p><button class="range-launch" id="open-range">◎ &nbsp; Play target practice <span>NEW</span></button><button class="range-launch" id="open-leaderboard">Leaderboard</button></div><div class="model"><span>WIRELESS CONTROLLER</span>CFI–ZCT1W / 01</div></section>
+  <section class="intro"><div><h1>DualSense.</h1><p>PS5 wireless controller. Every angle, in your hands.</p><button class="range-launch" id="open-range">◎ &nbsp; Play target practice <span>NEW</span></button></div><div class="model"><span>WIRELESS CONTROLLER</span>CFI–ZCT1W / 01</div></section>
   <section class="stage" aria-label="Interactive 3D DualSense controller">
     <div class="view-switch" aria-label="Camera angle"><button id="auto-view" aria-pressed="true" disabled title="Follow the controls you use">Auto</button><button data-view="front" aria-pressed="false" disabled>Front</button><button data-view="angle" aria-pressed="false" disabled>Angle</button><button data-view="back" aria-pressed="false" disabled>Back</button></div>
     <div class="viewer" id="viewer" aria-busy="true">
@@ -61,20 +62,48 @@
 </main>
 <dialog class="help" id="help"><div class="help-header"><h2>All in your hands.</h2><button class="icon-button" id="close-help" aria-label="Close controls"><svg viewBox="0 0 24 24"><path d="m6 6 12 12M18 6 6 18"/></svg></button></div><p>Click or tap any button. Drag a stick to tilt it; release to center. A short tap clicks it. Drag the shell to rotate the controller. Scroll to zoom, or choose Front, Angle, and Back.</p><div class="key-row"><span>Left stick</span><span><kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd></span></div><div class="key-row"><span>Right stick</span><span><kbd>I</kbd><kbd>J</kbd><kbd>K</kbd><kbd>L</kbd></span></div><div class="key-row"><span>Directional pad</span><span><kbd>↑</kbd><kbd>←</kbd><kbd>↓</kbd><kbd>→</kbd></span></div><div class="key-row"><span>△ ○ × □</span><span><kbd>4</kbd><kbd>2</kbd><kbd>X</kbd><kbd>Z</kbd></span></div><div class="key-row"><span>L1 / R1 · L2 / R2</span><span><kbd>Q</kbd><kbd>E</kbd> · <kbd>1</kbd><kbd>3</kbd></span></div><div class="key-row"><span>Stick clicks L3 / R3</span><span><kbd>F</kbd><kbd>H</kbd></span></div><div class="key-row"><span>Home · Mute · Touchpad</span><span><kbd>Space</kbd><kbd>M</kbd><kbd>T</kbd></span></div><div class="key-row"><span>Create / Options</span><span><kbd>C</kbd><kbd>Esc</kbd></span></div><p>Hold L2 or R2 and drag upward to vary its pressure. Your connected gamepad can also drive the display. Auto follows the controls you use: triggers show the rear, shoulder buttons show the top, and face buttons show the front. Pressed buttons glow soft yellow; triggers also show their pressure. Enable touchpad to follow one or two fingers on the physical pad without clicking, or drag the on-screen pad to see the circle. No vibration is added. Dragging the shell or selecting Front, Angle, or Back pauses Auto; choose Auto to resume. To feel real trigger resistance, connect a DualSense and choose Enable trigger effects. Select your controller in the browser prompt, then squeeze L2 or R2. Pistol has a crisp break; Shotgun has a heavier, longer pull. Let go to rearm either one. LMG gives strong repeated pulses while held down; SMG gives faster, lighter pulses. Resistance applies a steady force. Desktop Chrome or Edge is required; try a USB data cable if Bluetooth is unavailable. Off, Reset, and leaving the tab release the effect. Microphone control remains a visual simulation.</p></dialog>
 <dialog id="range" class="range-dialog" aria-labelledby="range-heading">
-  <div class="range-header"><div><span class="range-eyebrow">CONTROLLER STUDIO / ARCADE</span><h2 id="range-heading">Target practice.</h2></div><button class="retry-button" id="range-close">Back to controller</button></div>
-  <div class="range-hud" aria-label="Round statistics"><span>SCORE<strong id="range-score">0</strong></span><span>TIME<strong id="range-time">20s</strong></span><span>ACCURACY<strong id="range-accuracy">0%</strong></span><span>STREAK<strong id="range-streak">0</strong></span><span>BEST<strong id="range-best">0</strong></span></div>
-  <div class="range-field"><canvas id="range-canvas" width="1000" height="560" tabindex="0" aria-label="Target practice. Aim with the right stick, mouse, arrow keys or WASD. Fire with R2, Space, or click. On touchscreens, tap a target."></canvas><div id="range-overlay" class="range-overlay"><span class="range-eyebrow">AIM. SQUEEZE. REPEAT.</span><h3 id="range-title">Make every shot count.</h3><p id="range-summary">20 seconds. Moving targets. Your best shot.</p><div class="range-result-actions"><button id="range-start" class="range-primary">Start round</button><button id="range-save-card" class="retry-button" hidden>Download scorecard</button></div><small>Or press × on your controller</small><span id="range-download-status" role="status"></span></div></div>
-  <div class="range-toolbar"><label>WEAPON <select id="range-weapon"><option value="shooting">Pistol</option></select></label><button id="range-effects" class="retry-button">Enable adaptive triggers</button><button id="range-pause" class="retry-button" disabled>Pause</button><p id="range-feedback">Play freely, or enable adaptive triggers for the physical effect.</p></div>
-  <form id="range-submit-form" class="range-submit" hidden>
-    <div><strong>Put your name on the board.</strong><p>Your nickname, score, accuracy, and weapons will be public.</p></div>
-    <label>Nickname<input id="range-nickname" name="nickname" minlength="2" maxlength="20" required autocomplete="nickname" placeholder="Your callsign"></label>
-    <button id="range-submit" class="range-primary" type="submit">Submit score</button>
-    <p id="range-submit-status" role="status"></p>
-  </form>
-  <div class="range-gyro-row"><button id="range-gyro" class="retry-button">Enable gyro aiming</button><button id="range-recenter-gyro" class="retry-button" disabled>Recenter gyro</button><span id="range-gyro-status" role="status">Use controller motion alongside the right stick to aim.</span></div>
-  <div class="range-leaderboard-row"><button id="range-leaderboard" class="retry-button">View leaderboard</button><span id="range-ranking-status" role="status"></span></div>
-  <p class="range-instructions"><b>Controller</b> Right stick to aim · R2 to fire · △ to switch weapons <br><b>Mouse / keyboard</b> Move + click, or WASD / arrows + Space · 1–4 to switch · Tap targets on mobile</p>
-  <p class="range-instructions">Pistol &amp; Shotgun: release between shots. LMG &amp; SMG: hold to fire. Bullseyes score 100, outer hits 50, with bonuses for a streak.</p>
+  <div class="range-header range-topbar">
+    <div class="range-brand"><span class="range-emblem" aria-hidden="true">⌖</span><div><span class="range-eyebrow">CONTROLLER STUDIO / AIM TRAINER</span><h2 id="range-heading">The firing line<span>.</span></h2></div></div>
+    <div class="range-header-actions"><button class="retry-button" id="range-leaderboard"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 3h8v7a4 4 0 0 1-8 0V3ZM8 5H4v3a4 4 0 0 0 4 4m8-7h4v3a4 4 0 0 1-4 4M12 14v6m-4 1h8"/></svg>Leaderboard</button><button class="retry-button range-exit" id="range-close" aria-label="Back to controller">Exit <span aria-hidden="true">↗</span></button></div>
+  </div>
+  <div class="range-hud" aria-label="Round statistics">
+    <span class="range-score-stat">SCORE<strong id="range-score">0</strong></span>
+    <span class="range-time-stat">TIME LEFT<strong id="range-time">20s</strong></span>
+    <span>ACCURACY<strong id="range-accuracy">0%</strong></span><span>STREAK<strong id="range-streak">0</strong></span><span>PERSONAL BEST<strong id="range-best">0</strong></span>
+  </div>
+  <div class="range-timeline" aria-hidden="true"><i id="range-time-bar"></i></div>
+  <div class="range-field">
+    <canvas id="range-canvas" width="1000" height="560" tabindex="0" aria-label="Target practice. Aim with the right stick, gyro, mouse, arrow keys or WASD. Fire with R2, Space, or click. On touchscreens, tap a target."></canvas>
+    <div class="range-arena-label" aria-hidden="true"><i></i> BAY 01 <span>PRECISION TRAINING</span></div>
+    <div id="range-overlay" class="range-overlay">
+      <div class="range-center-card">
+        <span id="range-card-eyebrow" class="range-eyebrow">20 SECONDS. JUST YOU AND THE TARGETS.</span>
+        <h3 id="range-title">Find your focus.</h3>
+        <div id="range-final-score" class="range-final-score" hidden><strong id="range-final-points">0</strong><span>POINTS</span></div>
+        <p id="range-summary">Three moving targets. Four weapons. Make every shot count.</p>
+        <form id="range-submit-form" class="range-submit" hidden>
+          <label for="range-nickname">CLAIM YOUR PLACE ON THE LEADERBOARD</label>
+          <div class="range-submit-controls"><input id="range-nickname" name="nickname" minlength="2" maxlength="20" required autocomplete="nickname" placeholder="Your name" aria-describedby="range-public-note"><button id="range-submit" class="range-primary" type="submit">Submit score <span aria-hidden="true">↗</span></button></div>
+          <p id="range-public-note">Your name, score, accuracy, and weapons will be public.</p>
+          <p id="range-submit-status" role="status"></p>
+        </form>
+        <p id="range-ranking-status" class="range-ranking-status" role="status"></p>
+        <div class="range-result-actions"><button id="range-start" class="range-primary">Start round <span aria-hidden="true">↗</span></button><button id="range-save-card" class="retry-button" hidden>Save scorecard</button></div>
+        <small id="range-controller-start">Or press × on your controller</small><span id="range-download-status" role="status"></span>
+      </div>
+    </div>
+  </div>
+  <div class="range-bottom-bar">
+    <div class="range-loadout"><span class="range-loadout-icon" aria-hidden="true">⌁</span><label for="range-weapon">YOUR LOADOUT<select id="range-weapon"><option value="shooting">Pistol</option></select></label><span id="range-weapon-note">PRECISION / SINGLE SHOT</span></div>
+    <div class="range-quick-guide"><span>AIM <b>Mouse / R stick</b></span><span>FIRE <b>Click / R2</b></span></div>
+    <button id="range-pause" class="retry-button" disabled>Pause <span aria-hidden="true">Ⅱ</span></button>
+  </div>
+  <details class="range-setup"><summary><span>Controller setup &amp; controls</span><span class="range-setup-hint">GYRO · ADAPTIVE TRIGGERS <b>+</b></span></summary><div class="range-setup-content">
+    <div class="range-toolbar"><button id="range-effects" class="retry-button">Enable adaptive triggers</button><p id="range-feedback">Play freely, or enable adaptive triggers for the physical effect.</p></div>
+    <div class="range-gyro-row"><button id="range-gyro" class="retry-button">Enable gyro aiming</button><button id="range-recenter-gyro" class="retry-button" disabled>Recenter gyro</button><span id="range-gyro-status" role="status">Use controller motion alongside the right stick to aim.</span></div>
+    <p class="range-instructions"><b>Controller</b> Right stick or gyro to aim · R2 to fire · △ to switch weapons <br><b>Mouse / keyboard</b> Move + click, or WASD / arrows + Space · 1–4 to switch · Tap targets on mobile</p>
+    <p class="range-instructions">Pistol &amp; Shotgun: release between shots. LMG &amp; SMG: hold to fire. Bullseyes score 100, outer hits 50, with bonuses for a streak.</p>
+  </div></details>
   <output id="range-result" class="sr-only" aria-live="polite"></output>
 </dialog>
 <dialog id="drawing" class="studio-dialog" aria-labelledby="drawing-heading">
