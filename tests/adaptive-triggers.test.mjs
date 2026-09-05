@@ -181,3 +181,20 @@ test('a rejected effect attempts release; unplugging clears the active state', a
   assert.equal(pad.reports.at(-1).data[10], 5); assert.equal(service.active, false);
   listeners.disconnect({ device: pad }); assert.equal(service.device, null);
 });
+
+test('loading shared tuning is inert, changing active tuning applies it, and pending Off wins', async () => {
+  const { service, pad } = setup();
+  await service.setMode('lmg'); await service.setTuning({ strength: 7, speed: 22 });
+  assert.equal(pad.opened, false); assert.equal(pad.reports.length, 0);
+  await service.connect(); assert.equal(pad.reports.at(-1).data[19], 22);
+  let complete;
+  pad.sendReport = async (id, data) => {
+    pad.reports.push({ id, data });
+    if (data[10] === 0x26) await new Promise(resolve => { complete = resolve; });
+  };
+  const tuning = service.setTuning({ strength: 2, speed: 12 }); await Promise.resolve();
+  const off = service.pause(); const latest = service.setTuning({ strength: 4, speed: 8 });
+  complete(); await Promise.all([tuning, off, latest]);
+  assert.equal(service.active, false); assert.equal(service.requested, false); assert.equal(pad.reports.at(-1).data[10], 5);
+  await service.setMode('smg'); assert.equal(service.tuning, null);
+});

@@ -1,3 +1,4 @@
+import { Scorecard } from './scorecard.js';
 import { TargetPractice } from './target-practice.js';
 
 export class TargetPracticeView {
@@ -14,6 +15,10 @@ export class TargetPracticeView {
     try { this.best = Number(localStorage.getItem('dualsense-range-best')) || 0; } catch { /* Storage is optional. */ }
     this.$('range-weapon').replaceChildren(...Object.entries(TargetPractice.weapons).map(([key, weapon]) => new Option(weapon.label, key)));
     this.$('range-weapon').addEventListener('change', event => this.selectWeapon(event.target.value));
+    this.$('range-save-card').addEventListener('click', async () => {
+      try { await Scorecard.save(this.lastResult); this.$('range-download-status').textContent = 'Your scorecard is ready to save.'; }
+      catch (error) { this.$('range-download-status').textContent = error.message; }
+    });
     this.$('range-start').addEventListener('click', () => this.start());
     this.$('range-pause').addEventListener('click', () => this.pause());
     this.$('range-close').addEventListener('click', () => this.close());
@@ -49,7 +54,8 @@ export class TargetPracticeView {
   open(mode) {
     this.onOpen();
     this.game.setWeapon(Object.hasOwn(TargetPractice.weapons, mode) ? mode : 'shooting');
-    this.game.start(); this.game.stop(); this.impacts = [];
+    this.game.start(); this.game.stop(); this.impacts = []; this.lastResult = null;
+    this.$('range-download-status').textContent = '';
     this.$('range-weapon').value = this.game.weapon;
     this.onWeapon(this.game.weapon);
     this.dialog.showModal(); this.resize(); this.update();
@@ -68,7 +74,7 @@ export class TargetPracticeView {
 
   start() {
     this.release(); this.impacts = []; this.previousTime = 0;
-    this.$('range-result').textContent = '';
+    this.$('range-result').textContent = ''; this.$('range-download-status').textContent = '';
     if (this.game.state === 'paused') this.game.resume(); else this.game.start();
     this.game.trigger(this.input.button('r2'));
     this.canvas.focus(); this.update();
@@ -131,6 +137,7 @@ export class TargetPracticeView {
     this.$('range-accuracy').textContent = game.accuracy + '%';
     this.$('range-streak').textContent = game.streak;
     this.$('range-best').textContent = this.best.toLocaleString();
+    this.$('range-save-card').hidden = game.state !== 'finished';
     this.$('range-overlay').hidden = game.state === 'playing';
     this.$('range-pause').disabled = game.state !== 'playing';
     this.$('range-effects').disabled = this.connecting || this.effectsActive() || game.state === 'playing';
@@ -150,6 +157,7 @@ export class TargetPracticeView {
     const wasPlaying = this.game.state === 'playing';
     if (!document.hidden && document.hasFocus()) this.game.step(dt, { ...this.input.axis('right'), pressure: this.input.button('r2') });
     if (wasPlaying && this.game.state === 'finished') {
+      this.lastResult = this.game.result();
       this.release(); this.onStopEffects();
       this.best = Math.max(this.best, this.game.score);
       try { localStorage.setItem('dualsense-range-best', String(this.best)); } catch { /* Storage is optional. */ }

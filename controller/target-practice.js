@@ -10,11 +10,13 @@ export class TargetPractice {
     this.random = random; this.onShot = onShot;
     this.weapon = 'shooting'; this.state = 'ready';
     this.aim = { x: 500, y: 280 }; this.targets = [];
+    this.weaponsUsed = new Set();
     this.elapsed = 0; this.score = 0; this.shots = 0; this.hits = 0; this.streak = 0;
     this.cooldown = 0; this.armed = false;
   }
 
   start() {
+    this.weaponsUsed = new Set();
     this.elapsed = 0; this.score = 0; this.shots = 0; this.hits = 0; this.streak = 0;
     this.aim = { x: 500, y: 280 }; this.cooldown = 0; this.armed = false;
     this.targets = [];
@@ -24,6 +26,11 @@ export class TargetPractice {
 
   get remaining() { return Math.max(0, 45 - this.elapsed); }
   get accuracy() { return this.shots ? Math.round(this.hits / this.shots * 100) : 0; }
+
+  result() {
+    if (this.state !== 'finished') return null;
+    return Object.freeze({ score: this.score, hits: this.hits, shots: this.shots, weapons: Object.freeze([...this.weaponsUsed]) });
+  }
 
   spawn() {
     let target;
@@ -78,7 +85,7 @@ export class TargetPractice {
 
   #fire() {
     const weapon = TargetPractice.weapons[this.weapon];
-    this.shots++;
+    this.shots++; this.weaponsUsed.add(this.weapon);
     const candidates = this.targets.filter(target => target.respawnAt === null).map(target => {
       const point = this.position(target);
       return { target, distance: Math.hypot(point.x - this.aim.x, point.y - this.aim.y) };

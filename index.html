@@ -32,12 +32,23 @@
     <div><h2 id="trigger-effects-title">Feel the triggers.</h2><p id="trigger-effect-status" role="status">Connect a DualSense, choose an effect, then enable it on L2 and R2.</p></div>
     <div class="trigger-effect-actions"><label class="sr-only" for="trigger-mode">Trigger effect</label><select id="trigger-mode" aria-describedby="trigger-mode-description"><option value="shooting">Pistol</option><option value="resistance">Resistance</option></select><button id="enable-triggers" class="retry-button" type="button">Enable trigger effects</button><button id="disable-triggers" class="retry-button" type="button" disabled>Off</button></div>
     <p id="trigger-mode-description">Pistol: a crisp resistance point, then a sudden release. Let go to fire again.</p>
+    <details class="trigger-custom"><summary>Customize &amp; share this preset</summary><div class="preset-controls">
+      <label for="trigger-strength">Strength <output id="trigger-strength-label">5 / 8</output><input id="trigger-strength" type="range" min="1" max="8" step="1" value="5"></label>
+      <label for="trigger-speed">Pulse speed <output id="trigger-speed-label">Not used in this mode</output><input id="trigger-speed" type="range" min="1" max="30" step="1" value="10" disabled></label>
+      <div class="preset-actions"><button id="trigger-defaults" class="retry-button">Reset preset</button><button id="trigger-share" class="retry-button">Copy preset link</button></div>
+      <label class="preset-link" id="trigger-link-wrap" hidden>Preset link<input id="trigger-link" type="text" readonly></label>
+      <p id="trigger-share-status" role="status">Shared presets load with effects off. Enable them when you’re ready.</p>
+    </div></details>
     <p class="trigger-effect-help">Desktop Chrome or Edge · USB or Bluetooth · Effects turn off when you leave this tab.</p>
   </section>
   <section class="trigger-effects" aria-labelledby="touchpad-title">
     <div><h2 id="touchpad-title">Follow your finger.</h2><p id="touchpad-status" role="status">Connect your DualSense to follow your finger on its touchpad.</p></div>
     <button id="enable-touchpad" class="retry-button" type="button">Enable touchpad</button>
     <p class="trigger-effect-help">Move one or two fingers without clicking · Or drag the on-screen touchpad · Circle only, no vibration</p>
+  </section>
+  <section class="studio-tools" aria-label="Controller tools">
+    <button id="open-drawing"><span class="tool-symbol" aria-hidden="true">✧</span><span><strong>Touchpad drawing</strong><small>Paint with light. Save your creation.</small></span><span aria-hidden="true">↗</span></button>
+    <button id="open-diagnostics"><span class="tool-symbol" aria-hidden="true">◎</span><span><strong>Controller diagnostics</strong><small>Check sticks, triggers, and every button.</small></span><span aria-hidden="true">↗</span></button>
   </section>
   <footer><span>Independent recreation · Not affiliated with Sony</span><span class="model-credit">3D model by <a href="https://sketchfab.com/3d-models/ps5-controller-b7bb9c5102a04cb0b1966c6d02bad7d6" target="_blank" rel="noopener noreferrer">Taohid Animation</a> · <a href="https://creativecommons.org/licenses/by/4.0/" target="_blank" rel="noopener noreferrer">CC BY 4.0</a> · Adapted for interaction</span></footer>
   <output class="sr-only" id="announcement" aria-live="polite"></output>
@@ -46,11 +57,31 @@
 <dialog id="range" class="range-dialog" aria-labelledby="range-heading">
   <div class="range-header"><div><span class="range-eyebrow">CONTROLLER STUDIO / ARCADE</span><h2 id="range-heading">Target practice.</h2></div><button class="retry-button" id="range-close">Back to controller</button></div>
   <div class="range-hud" aria-label="Round statistics"><span>SCORE<strong id="range-score">0</strong></span><span>TIME<strong id="range-time">45s</strong></span><span>ACCURACY<strong id="range-accuracy">0%</strong></span><span>STREAK<strong id="range-streak">0</strong></span><span>BEST<strong id="range-best">0</strong></span></div>
-  <div class="range-field"><canvas id="range-canvas" width="1000" height="560" tabindex="0" aria-label="Target practice. Aim with the right stick, mouse, arrow keys or WASD. Fire with R2, Space, or click. On touchscreens, tap a target."></canvas><div id="range-overlay" class="range-overlay"><span class="range-eyebrow">AIM. SQUEEZE. REPEAT.</span><h3 id="range-title">Make every shot count.</h3><p id="range-summary">45 seconds. Moving targets. Your best shot.</p><button id="range-start" class="range-primary">Start round</button><small>Or press × on your controller</small></div></div>
+  <div class="range-field"><canvas id="range-canvas" width="1000" height="560" tabindex="0" aria-label="Target practice. Aim with the right stick, mouse, arrow keys or WASD. Fire with R2, Space, or click. On touchscreens, tap a target."></canvas><div id="range-overlay" class="range-overlay"><span class="range-eyebrow">AIM. SQUEEZE. REPEAT.</span><h3 id="range-title">Make every shot count.</h3><p id="range-summary">45 seconds. Moving targets. Your best shot.</p><div class="range-result-actions"><button id="range-start" class="range-primary">Start round</button><button id="range-save-card" class="retry-button" hidden>Download scorecard</button></div><small>Or press × on your controller</small><span id="range-download-status" role="status"></span></div></div>
   <div class="range-toolbar"><label>WEAPON <select id="range-weapon"><option value="shooting">Pistol</option></select></label><button id="range-effects" class="retry-button">Enable adaptive triggers</button><button id="range-pause" class="retry-button" disabled>Pause</button><p id="range-feedback">Play freely, or enable adaptive triggers for the physical effect.</p></div>
   <p class="range-instructions"><b>Controller</b> Right stick to aim · R2 to fire · △ to switch weapons <br><b>Mouse / keyboard</b> Move + click, or WASD / arrows + Space · 1–4 to switch · Tap targets on mobile</p>
   <p class="range-instructions">Pistol &amp; Shotgun: release between shots. LMG &amp; SMG: hold to fire. Bullseyes score 100, outer hits 50, with bonuses for a streak.</p>
   <output id="range-result" class="sr-only" aria-live="polite"></output>
+</dialog>
+<dialog id="drawing" class="studio-dialog" aria-labelledby="drawing-heading">
+  <div class="range-header"><div><span class="range-eyebrow">CONTROLLER STUDIO / CREATE</span><h2 id="drawing-heading">Paint with light.</h2></div><button id="drawing-close" class="retry-button">Back to controller</button></div>
+  <p class="studio-description">Glide one or two fingers across your DualSense touchpad. Or draw here with a mouse or touchscreen.</p>
+  <canvas id="drawing-canvas" width="1200" height="675" aria-label="Drawing canvas. Drag to create glowing trails." tabindex="0"></canvas>
+  <div class="studio-toolbar"><label>Glow <select id="drawing-color"><option value="#f4d878">Soft gold</option><option value="#83c7ff">Ice blue</option><option value="#e39aff">Lilac</option></select></label><button id="drawing-connect" class="retry-button">Enable physical touchpad</button><button id="drawing-clear" class="retry-button">Clear canvas</button><button id="drawing-save" class="range-primary" disabled>Save drawing</button></div>
+  <p id="drawing-status" class="studio-description" role="status">Physical tracking needs desktop Chrome or Edge. Your drawing stays in this tab until you clear or reload it. No vibration.</p>
+</dialog>
+<dialog id="diagnostics" class="studio-dialog" aria-labelledby="diagnostics-heading">
+  <div class="range-header"><div><span class="range-eyebrow">CONTROLLER STUDIO / CHECK</span><h2 id="diagnostics-heading">Know your controller.</h2></div><button id="diagnostics-close" class="retry-button">Back to controller</button></div>
+  <p id="diagnostics-device" class="studio-description">Connect a controller and press any button to begin.</p>
+  <div class="diagnostics-sticks">
+    <section><h3>Left stick</h3><div class="diagnostic-stick"><i id="diagnostics-left-dot"></i></div><output id="diagnostics-left-values">Waiting for controller</output><p id="diagnostics-left-center">No resting sample yet</p></section>
+    <section><h3>Right stick</h3><div class="diagnostic-stick"><i id="diagnostics-right-dot"></i></div><output id="diagnostics-right-values">Waiting for controller</output><p id="diagnostics-right-center">No resting sample yet</p></section>
+  </div>
+  <div class="studio-toolbar"><button id="diagnostics-measure" class="retry-button" disabled>Measure resting sticks</button><button id="diagnostics-reset" class="retry-button">Reset readings</button></div><p id="diagnostics-measure-status" class="studio-description" role="status">Let go of both sticks, then measure for two seconds. Readings have no added deadzone.</p>
+  <div class="diagnostic-triggers"><section><h3>L2 <output id="diagnostics-l2-value">0%</output></h3><progress id="diagnostics-l2" max="1" value="0" aria-label="L2 travel"></progress><p id="diagnostics-l2-travel">Observed travel</p></section><section><h3>R2 <output id="diagnostics-r2-value">0%</output></h3><progress id="diagnostics-r2" max="1" value="0" aria-label="R2 travel"></progress><p id="diagnostics-r2-travel">Observed travel</p></section></div>
+  <p class="studio-description">Slowly squeeze each trigger from released to fully pressed. Press and release every button; the count records each press.</p>
+  <div id="diagnostics-buttons" class="diagnostic-buttons" aria-label="Button response"></div>
+  <p class="studio-description">These are the readings your browser receives. This check does not change calibration or measure end-to-end input latency.</p>
 </dialog>
 <script type="module" src="./controller/controller-app.js"></script>
 </body>

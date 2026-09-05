@@ -4,6 +4,8 @@ import { ControllerInput } from './input-state.js';
 import { InputCamera } from './input-camera.js';
 import { TouchpadInput } from './touchpad-input.js';
 import { DualSenseView } from './controller-view.js';
+import { TouchDrawingView } from './touch-drawing-view.js';
+import { DiagnosticsView } from './diagnostics-view.js';
 import { TargetPracticeView } from './target-practice-view.js';
 
 const $ = id => document.getElementById(id);
@@ -17,7 +19,7 @@ const heldKeys = new Set();
 const pointers = new Map();
 const accessibleButtons = new Map();
 const timers = new Set();
-let view, range, audio, sound = false, statusTimer, gamepadIndex = null, gamepadFrame = 0;
+let view, range, drawing, diagnostics, audio, sound = false, statusTimer, gamepadIndex = null, gamepadFrame = 0;
 const inputCamera = new InputCamera(angle => {
   // Keep a dragged control under the pointer until the gesture ends.
   if (!view?.ready || pointers.size) return;
@@ -34,9 +36,11 @@ const triggerStatus = $('trigger-effect-status');
 let triggerBusy = false;
 const touchpad = new TouchpadInput(contacts => {
   view?.setTouchContacts('hardware', contacts);
+  drawing?.contacts(contacts);
   inputCamera.observe({ type: 'button', id: 'touch-contact', value: contacts.length ? 1 : 0 });
 }, (connected, message) => {
   $('touchpad-status').textContent = message;
+  if (drawing?.isOpen) drawing.message(message);
   $('enable-touchpad').textContent = connected ? 'Touchpad connected' : 'Enable touchpad';
   $('enable-touchpad').disabled = connected || triggerBusy || !navigator.hid;
 });
@@ -60,13 +64,44 @@ const triggerMode = $('trigger-mode');
 triggerMode.replaceChildren(...Object.entries(AdaptiveTriggers.presets).map(([mode, preset]) => new Option(preset.label, mode)));
 triggerMode.value = triggers.mode;
 function describeTriggerMode() {
-  const preset = AdaptiveTriggers.presetFor(triggerMode.value);
+  const preset = AdaptiveTriggers.presetFor(triggerMode.value, triggers.tuning);
+  $('trigger-strength').value = preset.strength;
+  $('trigger-speed').value = preset.frequency || 10;
+  $('trigger-speed').disabled = preset.type !== 'vibration';
+  describeTuning();
   $('trigger-mode-description').textContent = `${preset.label}: ${preset.description}`;
 }
+function describeTuning() {
+  $('trigger-strength-label').textContent = $('trigger-strength').value + ' / 8';
+  $('trigger-speed-label').textContent = $('trigger-speed').disabled ? 'Not used in this mode' : $('trigger-speed').value + ' Hz';
+}
+function tuningValues() { return { strength: Number($('trigger-strength').value), speed: $('trigger-speed').disabled ? 0 : Number($('trigger-speed').value) }; }
+for (const id of ['trigger-strength', 'trigger-speed']) {
+  $(id).addEventListener('input', describeTuning);
+  $(id).addEventListener('change', () => { void triggers.setTuning(tuningValues()).catch(error => { triggerStatus.textContent = error.message; }); });
+}
+$('trigger-defaults').addEventListener('click', () => {
+  const pending = triggers.setMode(triggerMode.value); describeTriggerMode();
+  void pending.catch(error => { triggerStatus.textContent = error.message; });
+});
+$('trigger-share').addEventListener('click', async () => {
+  const link = AdaptiveTriggers.setup.link(location.href, { mode: triggerMode.value, ...tuningValues() });
+  $('trigger-link').value = link; $('trigger-link-wrap').hidden = false;
+  try { await navigator.clipboard.writeText(link); $('trigger-share-status').textContent = 'Preset link copied. Opening it keeps trigger effects off.'; }
+  catch { $('trigger-link').focus(); $('trigger-link').select(); $('trigger-share-status').textContent = 'Copy the selected link to share your preset.'; }
+});
 describeTriggerMode();
+try {
+  const setup = AdaptiveTriggers.setup.read(location.href);
+  if (setup) {
+    triggerMode.value = setup.mode;
+    await triggers.setMode(setup.mode); await triggers.setTuning(setup); describeTriggerMode();
+    $('trigger-share-status').textContent = 'Shared preset loaded. Enable trigger effects to try it.';
+    document.querySelector('.trigger-custom').open = true;
+  }
+} catch (error) { $('trigger-share-status').textContent = error.message; document.querySelector('.trigger-custom').open = true; }
 $('trigger-mode').addEventListener('change', async event => {
-  describeTriggerMode();
-  try { await triggers.setMode(event.target.value); }
+  try { const pending = triggers.setMode(event.target.value); describeTriggerMode(); await pending; }
   catch (error) { triggerStatus.textContent = error.message; }
 });
 $('enable-triggers').addEventListener('click', async () => {
@@ -161,7 +196,7 @@ function keyAxes() {
   }
 }
 window.addEventListener('keydown', event => {
-  if (range?.isOpen || event.ctrlKey || event.metaKey || event.altKey || help.open || event.target.closest?.('button,input,select,textarea,a')) return;
+  if (range?.isOpen || drawing?.isOpen || diagnostics?.isOpen || event.ctrlKey || event.metaKey || event.altKey || help.open || event.target.closest?.('button,input,select,textarea,a')) return;
   if (!keyMap[event.code] && !analogCodes.has(event.code)) return;
   event.preventDefault(); if (event.repeat) return; heldKeys.add(event.code);
   if (keyMap[event.code]) input.setButton(keyMap[event.code], 'key:' + event.code, 1);
@@ -173,9 +208,9 @@ window.addEventListener('keyup', event => {
   if (analogCodes.has(event.code)) { keyAxes(); status('Stick centered', false); }
 });
 window.addEventListener('blur', () => { touchpad.setPaused(true); releaseAll(); });
-window.addEventListener('focus', () => { touchpad.setPaused(document.hidden || help.open); });
+window.addEventListener('focus', () => { touchpad.setPaused(document.hidden || help.open || range?.isOpen || diagnostics?.isOpen); });
 document.addEventListener('visibilitychange', () => {
-  touchpad.setPaused(document.hidden || !document.hasFocus() || help.open);
+  touchpad.setPaused(document.hidden || !document.hasFocus() || help.open || range?.isOpen || diagnostics?.isOpen);
   if (document.hidden) releaseAll();
 });
 
@@ -276,7 +311,7 @@ function discoverPad(){
 }
 function pollPad(){
   gamepadFrame=requestAnimationFrame(pollPad);
-  if(document.hidden||!document.hasFocus()||help.open||!view?.ready)return;
+  if(document.hidden||!document.hasFocus()||help.open||drawing?.isOpen||diagnostics?.isOpen||!view?.ready)return;
   const pad=gamepads()[gamepadIndex];if(!pad||pad.mapping!=='standard')return;
   padMap.forEach((id,index)=>{const value=pad.buttons[index]?.value||0;input.setButton(id,'gamepad',value>.04?value:0);});
   for(const [side,offset]of [['left',0],['right',2]]){
@@ -319,8 +354,9 @@ range = new TargetPracticeView({
   onOpen: () => { releaseAll(); touchpad.setPaused(true); if (view) view.suspended = true; },
   onClose: () => { if (view) view.suspended = false; touchpad.setPaused(document.hidden || !document.hasFocus()); },
   onWeapon: mode => {
-    triggerMode.value = mode; describeTriggerMode();
-    void triggers.setMode(mode).catch(error => { triggerStatus.textContent = error.message; });
+    triggerMode.value = mode;
+    const pending = triggers.setMode(mode); describeTriggerMode();
+    void pending.catch(error => { triggerStatus.textContent = error.message; });
   },
   onEnableEffects: async () => {
     if (!navigator.hid) throw new Error('Use desktop Chrome or Edge for adaptive triggers. You can still play here.');
@@ -331,6 +367,23 @@ range = new TargetPracticeView({
   effectsActive: () => triggers.active,
   onShot: () => tone('r2'),
 });
+function closeStudioTool() { releaseAll(); if (view) view.suspended = false; touchpad.setPaused(document.hidden || !document.hasFocus()); }
+drawing = new TouchDrawingView({
+  onOpen: () => { stopTriggers(); releaseAll(); if (view) view.suspended = true; touchpad.setPaused(document.hidden || !document.hasFocus()); },
+  onClose: closeStudioTool,
+  onConnect: async () => {
+    await triggers.connect({ enableEffects: false });
+    if (!triggers.device) drawing.message('No controller selected. Try enabling the touchpad again.');
+  },
+});
+diagnostics = new DiagnosticsView({
+  getPad: () => gamepads()[gamepadIndex] || gamepads().find(Boolean),
+  labels: padMap.map(id => labels[id]),
+  onOpen: () => { stopTriggers(); releaseAll(); touchpad.setPaused(true); if (view) view.suspended = true; },
+  onClose: closeStudioTool,
+});
+$('open-drawing').addEventListener('click', () => drawing.open());
+$('open-diagnostics').addEventListener('click', () => diagnostics.open());
 $('open-range').addEventListener('click', () => { range.open(triggerMode.value); analytics.interact('target_practice'); });
 try{
   view=new DualSenseView(canvas,input);
@@ -341,4 +394,4 @@ try{
   $('auto-view').disabled=false;
   discoverPad();
 }catch(error){console.error('DualSense 3D:',error);showError('The 3D controller could not load. Reload to try again, or use a browser with WebGL enabled.');}
-window.addEventListener('pagehide',()=>{range?.dispose();releaseAll();cancelAnimationFrame(gamepadFrame);view?.dispose();void audio?.close().catch(()=>{});});
+window.addEventListener('pagehide',()=>{range?.dispose();drawing?.dispose();diagnostics?.dispose();releaseAll();cancelAnimationFrame(gamepadFrame);view?.dispose();void audio?.close().catch(()=>{});});

@@ -1,5 +1,6 @@
 // Trigger encoding adapted from Nielk1's MIT-licensed trigger research.
 // See TRIGGER-NOTICES.md for attribution and protocol references.
+import { TriggerSetup } from './trigger-setup.js';
 export class AdaptiveTriggers {
   static filters = [{ vendorId: 0x054c, productId: 0x0ce6 }, { vendorId: 0x054c, productId: 0x0df2 }];
   static presets = Object.freeze(Object.fromEntries(Object.entries({
@@ -15,9 +16,14 @@ export class AdaptiveTriggers {
       description: 'A steady force pushes back as you squeeze either trigger.' },
   }).map(([name, preset]) => [name, Object.freeze(preset)])));
 
-  static presetFor(mode) {
+  static setup = new TriggerSetup(AdaptiveTriggers.presets);
+
+  static presetFor(mode, tuning = null) {
     if (!Object.hasOwn(AdaptiveTriggers.presets, mode)) throw new Error('Unknown trigger effect.');
-    return AdaptiveTriggers.presets[mode];
+    const preset = AdaptiveTriggers.presets[mode];
+    if (!tuning) return preset;
+    const config = AdaptiveTriggers.setup.normalize({ ...tuning, mode });
+    return { ...preset, strength: config.strength, frequency: config.speed };
   }
 
   constructor(hid, onChange = () => {}) {
@@ -26,6 +32,7 @@ export class AdaptiveTriggers {
     this.device = null;
     this.transport = null;
     this.mode = 'shooting';
+    this.tuning = null;
     this.requested = false;
     this.active = false;
     this.generation = 0;
@@ -59,11 +66,11 @@ export class AdaptiveTriggers {
     throw new Error('This controller connection is not supported. Try a USB data cable.');
   }
 
-  static effect(enabled, mode = 'shooting') {
+  static effect(enabled, mode = 'shooting', tuning = null) {
     const bytes = new Uint8Array(11);
     bytes[0] = 0x05;
     if (!enabled) return bytes;
-    const preset = AdaptiveTriggers.presetFor(mode);
+    const preset = AdaptiveTriggers.presetFor(mode, tuning);
     const view = new DataView(bytes.buffer);
     if (preset.type === 'weapon') {
       // Native Weapon: resist between two zones, then suddenly release.
@@ -85,13 +92,13 @@ export class AdaptiveTriggers {
     return bytes;
   }
 
-  static packet(transport, enabled, sequence = 0, mode = 'shooting') {
+  static packet(transport, enabled, sequence = 0, mode = 'shooting', tuning = null) {
     const bytes = new Uint8Array(transport.length);
     const offset = transport.offset;
     // Only the two trigger-enable flags; do not change audio, lights, or rumble.
     bytes[offset] = 0x0c;
-    bytes.set(AdaptiveTriggers.effect(enabled, mode), offset + 10); // R2
-    bytes.set(AdaptiveTriggers.effect(enabled, mode), offset + 21); // L2
+    bytes.set(AdaptiveTriggers.effect(enabled, mode, tuning), offset + 10); // R2
+    bytes.set(AdaptiveTriggers.effect(enabled, mode, tuning), offset + 21); // L2
     if (transport.reportId === 0x31) {
       bytes[0] = (sequence & 15) << 4; bytes[1] = 0x10;
       let crc = 0xffffffff;
@@ -123,7 +130,14 @@ export class AdaptiveTriggers {
   setMode(mode) {
     AdaptiveTriggers.presetFor(mode);
     this.mode = mode;
+    this.tuning = null;
     // Preserve Off, including when a previous write is still in flight.
+    return this.setEnabled(this.requested);
+  }
+
+  setTuning(values) {
+    const { strength, speed } = AdaptiveTriggers.setup.normalize({ ...values, mode: this.mode });
+    this.tuning = { strength, speed };
     return this.setEnabled(this.requested);
   }
 
@@ -135,7 +149,7 @@ export class AdaptiveTriggers {
       const effect = this.requested;
       const mode = this.mode;
       try {
-        await device.sendReport(transport.reportId, AdaptiveTriggers.packet(transport, effect, this.sequence++, mode));
+        await device.sendReport(transport.reportId, AdaptiveTriggers.packet(transport, effect, this.sequence++, mode, this.tuning));
         if (device !== this.device) return;
         this.active = effect;
         this.update(effect ? `${transport.name} connected. ${AdaptiveTriggers.presetFor(mode).label} is active on L2 and R2.` : 'Trigger effects off. Press Enable to try them again.');

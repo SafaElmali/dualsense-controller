@@ -119,3 +119,23 @@ Choose **Play target practice** beneath the page title to open a 45-second arcad
 - Pause, losing focus, hiding the tab, finishing, and closing the range stop firing and release trigger effects. Resume preserves the score and timer, but hardware effects must be enabled again. Closing restores the interactive 3D controller.
 
 The range uses a separate Canvas 2D renderer and suspends the 3D render while open. Tests cover target collision/scoring, cooldowns, automatic-fire cadence, single-shot rearming, pause/resume, round completion, and aiming bounds.
+
+## Touchpad drawing
+
+Open **Touchpad drawing** below the hardware controls. Move one or two fingers on an enabled physical touchpad, or drag across the canvas with a mouse or touchscreen. Choose soft gold, ice blue, or lilac; lifting a finger starts a separate stroke. **Save drawing** exports a 1200 × 735 PNG with a small studio footer. **Clear canvas** starts over. Closing the panel preserves the drawing in memory; refreshing clears it. The canvas caps recorded points at 20,000 and announces when it is full. Drawing adds no vibration and sends no coordinates or artwork to a server.
+
+## Custom trigger presets
+
+Expand **Customize & share this preset** under **Feel the triggers**. Strength runs from 1 to 8. LMG and SMG also support pulse speeds from 1 to 30 Hz; single-shot and steady-resistance modes do not use a pulse speed. Slider changes apply when released, using the existing serialized hardware writes. **Reset preset** restores the selected mode's defaults. Changing the mode also restores its defaults.
+
+**Copy preset link** puts the mode, strength, and speed in the URL fragment. A visible link is provided if clipboard access is unavailable. Loading a link validates all settings and never requests controller access or enables effects. The recipient must choose **Enable trigger effects**. Customization while Off stays off. Target practice selects each weapon's default physical preset to keep its established firing cadence.
+
+## Controller diagnostics
+
+Open **Controller diagnostics**, connect a gamepad, and press a button if the browser has not detected it. The panel displays the first four raw stick axes without the 3D viewer's added deadzone. **Measure resting sticks** samples for two seconds and reports the mean offset from center plus the greatest offset seen. Let go of the sticks during this measurement. Focus loss cancels an incomplete measurement.
+
+For a standard-mapped controller, L2 and R2 show current travel and observed minimum/maximum values. Each button shows its current press/release state and press count. **Reset readings**, reconnecting, or opening the panel starts a new check. These are browser-reported readings, not a hardware calibration, fault diagnosis, or end-to-end latency test. Opening diagnostics releases adaptive trigger effects.
+
+## Shareable scorecards
+
+Finish a target-practice round, then choose **Download scorecard**. The 1200 × 675 PNG includes the score, accuracy, hits/shots, and every weapon actually fired during that round. Switching weapons after completion cannot change the card, and replay cannot change a download already started. Empty rounds explicitly say no shots were fired. Cards are generated locally; there is no account, upload, or public leaderboard.
