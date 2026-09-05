@@ -106,3 +106,16 @@ Protocol references and the adapted trigger encoder's license are in [controller
 Choose **Enable touchpad** in desktop Chrome or Edge and select your DualSense. This shares the hardware connection with adaptive triggers and does not enable trigger effects. USB and full Bluetooth reports carry up to two finger positions; the app draws a yellow circle for each contact without requiring a touchpad click. Moving or lifting a finger updates or removes its circle. You can also drag the on-screen touchpad. No vibration is added.
 
 Auto brings the touchpad into view when touched (held triggers retain camera priority). Finger circles clear on focus loss, Reset, and disconnect. Bluetooth tracking requests the extended input report via feature report 0x05; try USB if your browser/controller cannot provide it. Normal Gamepad API input alone cannot provide finger positions. Touch coordinates stay in the browser and are not sent to analytics.
+
+## Target practice
+
+Choose **Play target practice** beneath the page title to open a 45-second arcade round. Three moving bullseyes respawn after hits. Center hits score 100, outer hits score 50, and consecutive hits add a bonus up to 50 per hit. The HUD shows score, time, accuracy, streak, and a personal best stored only in your browser.
+
+- **Controller:** right stick aims, R2 fires, Triangle cycles weapons, and Cross starts/replays/resumes a round.
+- **Mouse:** aim and click; hold for automatic weapons. **Touchscreen:** tap targets.
+- **Keyboard:** WASD or arrows aim, Space fires, and 1–4 select Pistol, Shotgun, LMG, or SMG.
+- Pistol and Shotgun require release between shots. Shotgun has a wider hit area; LMG and SMG fire continuously at their preset cadence. Release R2 after switching weapons to rearm.
+- Enable adaptive triggers before starting or while paused to feel the selected preset. Playing itself needs no hardware permission. The range uses the existing trigger connection and changes both L2/R2 to the chosen preset without adding rumble or touchpad vibration.
+- Pause, losing focus, hiding the tab, finishing, and closing the range stop firing and release trigger effects. Resume preserves the score and timer, but hardware effects must be enabled again. Closing restores the interactive 3D controller.
+
+The range uses a separate Canvas 2D renderer and suspends the 3D render while open. Tests cover target collision/scoring, cooldowns, automatic-fire cadence, single-shot rearming, pause/resume, round completion, and aiming bounds.

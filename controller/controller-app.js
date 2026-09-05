@@ -4,6 +4,7 @@ import { ControllerInput } from './input-state.js';
 import { InputCamera } from './input-camera.js';
 import { TouchpadInput } from './touchpad-input.js';
 import { DualSenseView } from './controller-view.js';
+import { TargetPracticeView } from './target-practice-view.js';
 
 const $ = id => document.getElementById(id);
 const canvas = $('controller-canvas');
@@ -16,7 +17,7 @@ const heldKeys = new Set();
 const pointers = new Map();
 const accessibleButtons = new Map();
 const timers = new Set();
-let view, audio, sound = false, statusTimer, gamepadIndex = null, gamepadFrame = 0;
+let view, range, audio, sound = false, statusTimer, gamepadIndex = null, gamepadFrame = 0;
 const inputCamera = new InputCamera(angle => {
   // Keep a dragged control under the pointer until the gesture ends.
   if (!view?.ready || pointers.size) return;
@@ -119,6 +120,7 @@ function tone(id) {
 }
 
 const input = new ControllerInput(event => {
+  range?.handleInput(event);
   inputCamera.observe(event);
   if (event.type === 'axis') {
     if (Math.hypot(event.x, event.y) > .1) analytics.interact('stick');
@@ -133,7 +135,7 @@ const input = new ControllerInput(event => {
   }
   if (event.value && !event.before) {
     analytics.interact('button');
-    tone(event.id); status(labels[event.id]);
+    if (!range?.isOpen) tone(event.id); status(labels[event.id]);
     if (event.id === 'ps' && view) { view.lights = !view.lights; status(view.lights ? 'Light bars on' : 'Light bars off'); }
     if (event.id === 'mute' && view) { view.muted = !view.muted; status(view.muted ? 'Microphone mute on' : 'Microphone mute off'); }
   } else if (!event.value && event.before) {
@@ -159,7 +161,7 @@ function keyAxes() {
   }
 }
 window.addEventListener('keydown', event => {
-  if (event.ctrlKey || event.metaKey || event.altKey || help.open || event.target.closest?.('button,input,select,textarea,a')) return;
+  if (range?.isOpen || event.ctrlKey || event.metaKey || event.altKey || help.open || event.target.closest?.('button,input,select,textarea,a')) return;
   if (!keyMap[event.code] && !analogCodes.has(event.code)) return;
   event.preventDefault(); if (event.repeat) return; heldKeys.add(event.code);
   if (keyMap[event.code]) input.setButton(keyMap[event.code], 'key:' + event.code, 1);
@@ -312,6 +314,24 @@ function addAccessibleControls(){
   };
 }
 function showError(message){stopTriggers();$('loading').hidden=true;$('load-error').hidden=false;$('error-message').textContent=message;}
+range = new TargetPracticeView({
+  input,
+  onOpen: () => { releaseAll(); touchpad.setPaused(true); if (view) view.suspended = true; },
+  onClose: () => { if (view) view.suspended = false; touchpad.setPaused(document.hidden || !document.hasFocus()); },
+  onWeapon: mode => {
+    triggerMode.value = mode; describeTriggerMode();
+    void triggers.setMode(mode).catch(error => { triggerStatus.textContent = error.message; });
+  },
+  onEnableEffects: async () => {
+    if (!navigator.hid) throw new Error('Use desktop Chrome or Edge for adaptive triggers. You can still play here.');
+    await triggers.connect();
+    if (document.hidden || !range.isOpen) await triggers.pause();
+  },
+  onStopEffects: stopTriggers,
+  effectsActive: () => triggers.active,
+  onShot: () => tone('r2'),
+});
+$('open-range').addEventListener('click', () => { range.open(triggerMode.value); analytics.interact('target_practice'); });
 try{
   view=new DualSenseView(canvas,input);
   await view.load(percent=>{$('load-progress').textContent=percent+'%';});
@@ -321,4 +341,4 @@ try{
   $('auto-view').disabled=false;
   discoverPad();
 }catch(error){console.error('DualSense 3D:',error);showError('The 3D controller could not load. Reload to try again, or use a browser with WebGL enabled.');}
-window.addEventListener('pagehide',()=>{releaseAll();cancelAnimationFrame(gamepadFrame);view?.dispose();void audio?.close().catch(()=>{});});
+window.addEventListener('pagehide',()=>{range?.dispose();releaseAll();cancelAnimationFrame(gamepadFrame);view?.dispose();void audio?.close().catch(()=>{});});

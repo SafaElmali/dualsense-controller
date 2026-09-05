@@ -289,7 +289,7 @@ export class DualSenseView {
 
   animate(time) {
     this.frame = requestAnimationFrame(next => this.animate(next));
-    if (document.hidden || this.contextLost) return;
+    if (document.hidden || this.contextLost || this.suspended) return;
     const dt = Math.min((time - (this.previousTime || time)) / 1000, .05);
     this.previousTime = time;
     const blend = this.reducedMotion.matches ? 1 : 1 - Math.exp(-18 * dt);
