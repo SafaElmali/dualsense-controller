@@ -3,7 +3,6 @@ import { analytics } from './analytics.js';
 import { ControllerInput } from './input-state.js';
 import { InputCamera } from './input-camera.js';
 import { GyroInput } from './gyro-input.js';
-import { StickCompensation } from './stick-compensation.js';
 import { TouchpadInput } from './touchpad-input.js';
 import { DualSenseView } from './controller-view.js';
 import { TouchDrawingView } from './touch-drawing-view.js';
@@ -35,7 +34,6 @@ function setAutoView(enabled) {
 }
 $('auto-view').addEventListener('click', () => setAutoView(!inputCamera.enabled));
 
-const compensation = new StickCompensation();
 const leaderboardClient = new LeaderboardClient();
 const triggerStatus = $('trigger-effect-status');
 let triggerBusy = false, sensorNoticeTimer;
@@ -402,11 +400,10 @@ function pollPad(){
   const pad=gamepads()[gamepadIndex];if(!pad||pad.mapping!=='standard')return;
   padMap.forEach((id,index)=>{const value=pad.buttons[index]?.value||0;input.setButton(id,'gamepad',value>.04?value:0);});
   for(const [side,offset]of [['left',0],['right',2]]){
-    const corrected=compensation.axis(`${pad.index}:${pad.id}`,side,pad.axes[offset],pad.axes[offset+1]);
-    input.setAxis(side,'gamepad',corrected.x,corrected.y);
+    const deadzone=value=>Math.abs(value||0)<.075?0:value;
+    input.setAxis(side,'gamepad',deadzone(pad.axes[offset]),deadzone(pad.axes[offset+1]));
   }
 }
-window.addEventListener('gamepaddisconnected', () => compensation.clear());
 window.addEventListener('gamepadconnected',discoverPad);window.addEventListener('gamepaddisconnected',discoverPad);
 
 function addAccessibleControls(){
@@ -469,7 +466,6 @@ drawing = new TouchDrawingView({
   },
 });
 diagnostics = new DiagnosticsView({
-  compensation,
   onAction: (feature, action, properties) => analytics.featureAction(feature, action, properties),
   getPad: () => gamepads()[gamepadIndex] || gamepads().find(Boolean),
   labels: padMap.map(id => labels[id]),

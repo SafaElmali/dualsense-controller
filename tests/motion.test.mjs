@@ -1,8 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { GyroInput } from '../controller/gyro-input.js';
-import { StickCompensation } from '../controller/stick-compensation.js';
-import { ControllerDiagnostics } from '../controller/controller-diagnostics.js';
 import { ControllerAnalytics } from '../controller/analytics-service.js';
 import { TargetPracticeView } from '../controller/target-practice-view.js';
 import { TargetPractice } from '../controller/target-practice.js';
@@ -53,34 +51,14 @@ test('late calibration cannot re-enable an Off or disconnected gyro', async () =
   const second = gyro.enable(); gyro.attach(null); resolve(new DataView(new ArrayBuffer(40)));
   assert.equal(await second, false); assert.equal(pad.listeners.size, 0);
 });
-test('resting measurement supplies stable correction while preserving raw readings and full stick travel', () => {
-  const model = new ControllerDiagnostics(), correction = new StickCompensation();
-  const pad = { index: 0, id: 'test', mapping: 'standard', axes: [.1, -.08, .04, -.02], buttons: [] };
-  model.sample(pad, 0); model.measure(0); for (let t = 0; t <= 2000; t += 20) model.sample(pad, t);
-  correction.apply(model.device, model.center);
-  assert.deepEqual(model.axes, pad.axes);
-  assert.deepEqual(correction.axis(model.device, 'left', .1, -.08), { x: 0, y: 0 });
-  assert.equal(correction.axis(model.device, 'left', 1, -.08).x, 1); assert.ok(Math.abs(correction.axis(model.device, 'left', 1, -.08).y) < 1e-12);
-  assert.equal(correction.axis(model.device, 'left', -1, -.08).x, -1);
-  assert.notEqual(correction.axis('another', 'left', .1, -.08).x, 0);
-  correction.setDeadzone(.99); assert.equal(correction.profile.deadzone, .3);
-  const diagonal = correction.axis(model.device, 'left', 1, 1); assert.ok(Math.hypot(diagonal.x, diagonal.y) <= 1);
-  correction.clear(); assert.equal(correction.axis(model.device, 'left', .1, -.08).x, .1);
-});
-test('moving sticks, large offsets, and undersampled calibration cannot be applied', () => {
-  const correction = new StickCompensation(), sample = { axes: [.1, 0, 0, 0], peaks: [.1, 0], ranges: [0, 0, 0, 0], count: 100 };
-  for (const change of [{ count: 2 }, { peaks: [.6, 0] }, { ranges: [.2, 0, 0, 0] }]) assert.throws(() => correction.apply('a', { ...sample, ...change }), /measure again/);
-});
 test('motion aiming moves playing rounds only and remains bounded', () => {
   const game = new TargetPractice(), view = { game }; game.start();
   TargetPracticeView.prototype.motion.call(view, { pitch: 10, yaw: -20, dt: .05 }); assert.deepEqual(game.aim, { x: 512, y: 274 });
   game.pause(); TargetPracticeView.prototype.motion.call(view, { pitch: 20, yaw: 20, dt: 1 }); assert.deepEqual(game.aim, { x: 512, y: 274 });
   game.resume(); TargetPracticeView.prototype.motion.call(view, { pitch: 2000, yaw: -2000, dt: .1 }); assert.deepEqual(game.aim, { x: 980, y: 30 });
 });
-test('motion and compensation analytics never include sensor data or device identifiers', () => {
+test('motion analytics never include sensor data or device identifiers', () => {
   const events = [], analytics = new ControllerAnalytics((event, props) => events.push({ event, props }));
   analytics.featureAction('gyro', 'enabled', { pitch: 100, device: 'private' });
-  analytics.featureAction('drift_compensation', 'applied', { axes: [.1], device: 'private' });
   assert.deepEqual(events.find(e => e.event === 'controller_gyro_enabled').props, {});
-  assert.deepEqual(events.find(e => e.event === 'controller_drift_compensation_applied').props, {});
 });

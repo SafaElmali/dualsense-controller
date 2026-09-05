@@ -175,9 +175,7 @@ PostHog records `controller_leaderboard_opened` and `controller_leaderboard_subm
 Tests cover persistent reads, round ownership and expiry, invalid inputs, idempotent retries, concurrent writes, ranking, personal-best retention, board size, rate limits, HTTP request validation, and offline client behavior.
 
 
-## Stick drift compensation and gyro
-
-**Drift compensation is an app-only workaround, not a hardware repair.** Open Controller diagnostics, release both sticks, choose **Measure resting sticks**, then **Apply drift compensation**. The captured center is subtracted, travel is rescaled to keep full range, and a radial deadzone suppresses small residual movement. The deadzone can be adjusted between 2% and 30%; larger values sacrifice fine control. Both the raw readings and compensated values remain visible. Moving, excessive-offset, or undersampled measurements cannot be applied. Compensation stays in memory for the connected Gamepad identity and is cleared on disconnect or reload. It affects this app and target practice only; it never writes controller calibration or changes PS5/other-game behavior.
+## Gyro
 
 Choose **Enable gyro** on the main page or **Enable gyro aiming** in target practice. This reuses the existing DualSense WebHID connection (desktop Chrome/Edge, secure context, explicit browser device permission). USB and full Bluetooth sensor reports drive relative 3D rotation and pitch/yaw aiming alongside the right stick. It does not emulate gyro input for other games. Automatic button-follow camera changes are suppressed while gyro is enabled. Dragging still works; gyro does not rotate beneath an active drag.
 
@@ -185,7 +183,7 @@ Choose **Enable gyro** on the main page or **Enable gyro aiming** in target prac
 
 The gyro service parses signed axes and the controller's sensor clock (including wraparound), discards missing/large time steps, and removes listeners on disconnect. It reads factory sensitivity from feature report 0x05 when available; otherwise the live rates are explicitly approximate using nominal sensitivity. It never sends feature reports or writes factory calibration. The packet layout, clock units, and scale conventions are referenced from [Sony's Linux hid-playstation driver](https://github.com/torvalds/linux/blob/master/drivers/hid/hid-playstation.c); feature-report framing follows [WebHID](https://wicg.github.io/webhid/).
 
-PostHog counts `controller_gyro_enabled`, `controller_gyro_disabled`, `controller_gyro_recentered`, and `controller_drift_compensation_applied`, `controller_drift_compensation_adjusted`, `controller_drift_compensation_removed`. No raw gyro rates, stick measurements, bias values, or device IDs are sent. Tests cover report decoding, feature framing, timestamp wrap, pause/disconnect, cancellation during calibration, stationary-bias correction, compensation boundaries, raw diagnostic preservation, and motion aiming. Physical motion direction and feel still require a hands-on controller check.
+PostHog counts `controller_gyro_enabled`, `controller_gyro_disabled`, and `controller_gyro_recentered`. No raw gyro rates, stick measurements, bias values, or device IDs are sent. Tests cover report decoding, feature framing, timestamp wrap, pause/disconnect, cancellation during calibration, stationary-bias correction, raw diagnostic preservation, and motion aiming. Physical motion direction and feel still require a hands-on controller check.
 
 
 ### Firing-line presentation

@@ -8,7 +8,7 @@ export class ControllerDiagnostics {
   cancelMeasure() { this.measurement = null; }
   measure(time) {
     if (!this.device) return false;
-    this.center = null; this.measurement = { start: time, sums: [0, 0, 0, 0], peaks: [0, 0], min: [1, 1, 1, 1], max: [-1, -1, -1, -1], count: 0 }; return true;
+    this.center = null; this.measurement = { start: time, sums: [0, 0, 0, 0], peaks: [0, 0], count: 0 }; return true;
   }
   sample(pad, time) {
     if (!pad || pad.connected === false) { if (this.device) this.reset(); return; }
@@ -30,10 +30,10 @@ export class ControllerDiagnostics {
     });
     if (this.measurement) {
       const sample = this.measurement; sample.count++;
-      this.axes.forEach((value, i) => { sample.sums[i] += value; sample.min[i] = Math.min(sample.min[i], value); sample.max[i] = Math.max(sample.max[i], value); });
+      this.axes.forEach((value, i) => { sample.sums[i] += value; });
       for (let side = 0; side < 2; side++) sample.peaks[side] = Math.max(sample.peaks[side], Math.hypot(this.axes[side * 2], this.axes[side * 2 + 1]));
       if (time - sample.start >= 2000) {
-        this.center = { axes: sample.sums.map(value => value / sample.count), peaks: sample.peaks, ranges: sample.max.map((value, i) => value - sample.min[i]), count: sample.count };
+        this.center = { axes: sample.sums.map(value => value / sample.count), peaks: sample.peaks };
         this.measurement = null;
       }
     }
