@@ -224,6 +224,14 @@ export class DualSenseView {
     if (resetZoom) { this.zoom = 1; this.resize(); }
   }
 
+  motion({ pitch, yaw, roll, dt }) {
+    const radians = Math.PI / 180 * dt;
+    const orientation = new THREE.Quaternion().setFromEuler(new THREE.Euler(this.pose.x, this.pose.y, this.pose.z));
+    orientation.multiply(new THREE.Quaternion().setFromEuler(new THREE.Euler(pitch * radians, -yaw * radians, -roll * radians)));
+    const euler = new THREE.Euler().setFromQuaternion(orientation);
+    this.pose = { x: euler.x, y: euler.y, z: euler.z };
+  }
+
   hit(clientX, clientY) {
     if (!this.ready) return null;
     const box = this.canvas.getBoundingClientRect();
@@ -294,10 +302,8 @@ export class DualSenseView {
     this.previousTime = time;
     const blend = this.reducedMotion.matches ? 1 : 1 - Math.exp(-18 * dt);
     const cameraBlend = this.reducedMotion.matches ? 1 : 1 - Math.exp(-8 * dt);
-    this.model.rotation.x += (this.pose.x - this.model.rotation.x) * cameraBlend;
-    const turn = this.pose.y - this.model.rotation.y;
-    this.model.rotation.y += Math.atan2(Math.sin(turn), Math.cos(turn)) * cameraBlend;
-    this.model.rotation.z += (this.pose.z - this.model.rotation.z) * cameraBlend;
+    const targetOrientation = new THREE.Quaternion().setFromEuler(new THREE.Euler(this.pose.x, this.pose.y, this.pose.z));
+    this.model.quaternion.slerp(targetOrientation, cameraBlend);
     for (const [id, group] of this.controls) {
       const rest = group.userData.rest;
       if (!rest) continue;

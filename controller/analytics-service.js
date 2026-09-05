@@ -6,6 +6,8 @@ export class ControllerAnalytics {
     trigger_presets: { opened: [], changed: ['mode', 'strength', 'speed_hz'], reset: ['mode'], link_created: ['mode', 'strength', 'speed_hz'], link_copied: ['mode', 'strength', 'speed_hz'], loaded: ['mode', 'strength', 'speed_hz'] },
     diagnostics: { opened: [], connected: [], measurement_started: [], measurement_completed: [], reset: [] },
     target_practice: { started: ['mode'], completed: ['score', 'hits', 'shots', 'weapons'] },
+    gyro: { enabled: [], disabled: [], recentered: [] },
+    drift_compensation: { applied: [], adjusted: [], removed: [] },
     leaderboard: { opened: [], submitted: ['score'] },
     scorecard: { exported: ['score', 'hits', 'shots', 'weapons'], export_failed: [] },
   };

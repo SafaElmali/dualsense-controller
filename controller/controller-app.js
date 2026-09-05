@@ -2,6 +2,8 @@ import { AdaptiveTriggers } from './adaptive-triggers.js';
 import { analytics } from './analytics.js';
 import { ControllerInput } from './input-state.js';
 import { InputCamera } from './input-camera.js';
+import { GyroInput } from './gyro-input.js';
+import { StickCompensation } from './stick-compensation.js';
 import { TouchpadInput } from './touchpad-input.js';
 import { DualSenseView } from './controller-view.js';
 import { TouchDrawingView } from './touch-drawing-view.js';
@@ -23,7 +25,7 @@ const timers = new Set();
 let view, range, drawing, diagnostics, leaderboard, audio, sound = false, statusTimer, gamepadIndex = null, gamepadFrame = 0;
 const inputCamera = new InputCamera(angle => {
   // Keep a dragged control under the pointer until the gesture ends.
-  if (!view?.ready || pointers.size) return;
+  if (!view?.ready || pointers.size || gyro.enabled) return;
   view.setView(angle, { resetZoom: false });
   document.querySelectorAll('[data-view]').forEach(button => button.setAttribute('aria-pressed', 'false'));
 });
@@ -33,6 +35,7 @@ function setAutoView(enabled) {
 }
 $('auto-view').addEventListener('click', () => setAutoView(!inputCamera.enabled));
 
+const compensation = new StickCompensation();
 const leaderboardClient = new LeaderboardClient();
 const triggerStatus = $('trigger-effect-status');
 let triggerBusy = false;
@@ -46,7 +49,57 @@ const touchpad = new TouchpadInput(contacts => {
   $('enable-touchpad').textContent = connected ? 'Touchpad connected' : 'Enable touchpad';
   $('enable-touchpad').disabled = connected || triggerBusy || !navigator.hid;
 });
+let gyroUiTime = 0;
+const gyro = new GyroInput(({ pitch, yaw, roll, dt }) => {
+  if (document.hidden || !document.hasFocus() || help.open || drawing?.isOpen || diagnostics?.isOpen || leaderboard?.isOpen) { pauseGyro(); return; }
+  if (range?.isOpen) range.motion({ pitch, yaw, dt });
+  else if (view?.ready && !pointers.size) view.motion({ pitch, yaw, roll, dt });
+  if (performance.now() - gyroUiTime > 100) {
+    gyroUiTime = performance.now(); $('gyro-values').textContent = `Pitch ${pitch.toFixed(1)}°/s · Yaw ${yaw.toFixed(1)}°/s · Roll ${roll.toFixed(1)}°/s${gyro.scale ? '' : ' (approx.)'}`;
+  }
+}, message => { $('gyro-status').textContent = message; $('range-gyro-status').textContent = message; });
+function renderGyro() {
+  $('auto-view').disabled = gyro.enabled || !view?.ready;
+  $('auto-view').title = gyro.enabled ? 'Turn gyro off to follow button presses' : 'Follow the controls you use';
+  for (const id of ['recenter-gyro', 'range-recenter-gyro', 'disable-gyro']) $(id).disabled = !gyro.enabled;
+  $('enable-gyro').disabled = triggerBusy || gyro.enabled || !navigator.hid || !window.isSecureContext;
+  $('enable-gyro').textContent = gyro.enabled ? 'Gyro enabled' : 'Enable gyro';
+  $('range-gyro').disabled = triggerBusy || !!range?.connecting || !navigator.hid || !window.isSecureContext;
+  $('range-gyro').textContent = gyro.enabled ? 'Disable gyro aiming' : 'Enable gyro aiming';
+}
+function pauseGyro() { gyro.setPaused(document.hidden || !document.hasFocus() || help.open || !!drawing?.isOpen || !!diagnostics?.isOpen || !!leaderboard?.isOpen); }
+async function enableGyro() {
+  if (triggerBusy || range?.connecting) return;
+  triggerBusy = true; renderGyro();
+  try {
+    await triggers.connect({ enableEffects: false });
+    if (await gyro.enable()) { pauseGyro(); analytics.featureAction('gyro', 'enabled'); }
+    else if (!triggers.device) $('gyro-status').textContent = $('range-gyro-status').textContent = 'No controller selected. Choose Enable gyro to try again.';
+  } catch (error) { $('gyro-status').textContent = $('range-gyro-status').textContent = error.name === 'NotAllowedError' ? 'Controller access was not granted. Try Enable gyro again.' : error.message; }
+  finally { triggerBusy = false; renderGyro(); $('enable-triggers').disabled = triggers.active || !navigator.hid; $('enable-touchpad').disabled = !!touchpad.device || !navigator.hid; }
+}
+function disableGyro() { gyro.setEnabled(false); renderGyro(); $('gyro-status').textContent = $('range-gyro-status').textContent = 'Gyro off. Stick and mouse controls still work.'; analytics.featureAction('gyro', 'disabled'); }
+function recenterGyro() {
+  range?.pause();
+  if (gyro.recenter()) { view?.setView('front'); if (range?.isOpen) range.game.setAim(500, 280); analytics.featureAction('gyro', 'recentered'); }
+}
+$('enable-gyro').addEventListener('click', enableGyro);
+$('range-gyro').addEventListener('click', () => gyro.enabled ? disableGyro() : enableGyro());
+$('disable-gyro').addEventListener('click', disableGyro);
+for (const id of ['recenter-gyro', 'range-recenter-gyro']) $(id).addEventListener('click', recenterGyro);
+for (const event of ['blur', 'focus']) window.addEventListener(event, pauseGyro);
+document.addEventListener('visibilitychange', pauseGyro);
+for (const dialog of document.querySelectorAll('dialog')) dialog.addEventListener('close', pauseGyro);
+const gyroWatch = setInterval(() => {
+  pauseGyro(); renderGyro();
+  if (gyro.enabled && !gyro.paused && performance.now() - gyro.lastReport > 3000) {
+    gyro.previous = null; gyro.measurement = null; gyro.received = false;
+    $('gyro-status').textContent = $('range-gyro-status').textContent = 'No motion reports received. Try a USB data cable, or reconnect your controller.';
+  }
+}, 1000);
+window.addEventListener('pagehide', () => { clearInterval(gyroWatch); gyro.attach(null); });
 const triggers = new AdaptiveTriggers(navigator.hid, state => {
+  gyro.attach(state.device); renderGyro();
   void touchpad.attach(state.device, triggers.transport?.name === 'Bluetooth');
   triggerStatus.textContent = state.message;
   $('disable-triggers').disabled = !state.connected;
@@ -54,6 +107,7 @@ const triggers = new AdaptiveTriggers(navigator.hid, state => {
   $('enable-triggers').disabled = triggerBusy || state.active || !navigator.hid;
 });
 if (!navigator.hid || !window.isSecureContext) {
+  renderGyro(); $('gyro-status').textContent = $('range-gyro-status').textContent = 'Use desktop Chrome or Edge to enable physical gyro input.';
   $('enable-triggers').disabled = true;
   $('enable-touchpad').disabled = true;
   $('touchpad-status').textContent = 'Use desktop Chrome or Edge for physical finger tracking. Drag the on-screen touchpad to try the circle here.';
@@ -329,10 +383,11 @@ function pollPad(){
   const pad=gamepads()[gamepadIndex];if(!pad||pad.mapping!=='standard')return;
   padMap.forEach((id,index)=>{const value=pad.buttons[index]?.value||0;input.setButton(id,'gamepad',value>.04?value:0);});
   for(const [side,offset]of [['left',0],['right',2]]){
-    const deadzone=value=>Math.abs(value||0)<.075?0:value;
-    input.setAxis(side,'gamepad',deadzone(pad.axes[offset]),deadzone(pad.axes[offset+1]));
+    const corrected=compensation.axis(`${pad.index}:${pad.id}`,side,pad.axes[offset],pad.axes[offset+1]);
+    input.setAxis(side,'gamepad',corrected.x,corrected.y);
   }
 }
+window.addEventListener('gamepaddisconnected', () => compensation.clear());
 window.addEventListener('gamepadconnected',discoverPad);window.addEventListener('gamepaddisconnected',discoverPad);
 
 function addAccessibleControls(){
@@ -394,6 +449,7 @@ drawing = new TouchDrawingView({
   },
 });
 diagnostics = new DiagnosticsView({
+  compensation,
   onAction: (feature, action, properties) => analytics.featureAction(feature, action, properties),
   getPad: () => gamepads()[gamepadIndex] || gamepads().find(Boolean),
   labels: padMap.map(id => labels[id]),

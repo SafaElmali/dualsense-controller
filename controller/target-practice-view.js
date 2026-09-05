@@ -155,6 +155,11 @@ export class TargetPracticeView {
     }
   }
 
+  motion({ pitch, yaw, dt }) {
+    if (this.game.state !== 'playing') return;
+    this.game.setAim(this.game.aim.x - yaw * dt * 12, this.game.aim.y - pitch * dt * 12);
+  }
+
   point(event) {
     if (this.game.state !== 'playing') return;
     const rect = this.canvas.getBoundingClientRect();

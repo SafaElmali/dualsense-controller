@@ -1,14 +1,25 @@
 import { ControllerDiagnostics } from './controller-diagnostics.js';
 
 export class DiagnosticsView {
-  constructor({ getPad, onOpen, onClose, labels, onAction = () => {} }) {
-    this.onAction = onAction;
+  constructor({ compensation, getPad, onOpen, onClose, labels, onAction = () => {} }) {
+    this.onAction = onAction; this.compensation = compensation;
     this.model = new ControllerDiagnostics(); this.getPad = getPad; this.onOpen = onOpen; this.onClose = onClose; this.labels = labels;
     this.dialog = document.getElementById('diagnostics'); this.frame = 0;
     this.$('diagnostics-close').addEventListener('click', () => this.dialog.close());
     this.dialog.addEventListener('close', () => { cancelAnimationFrame(this.frame); this.model.cancelMeasure(); this.onClose(); });
     this.$('diagnostics-reset').addEventListener('click', () => { this.model.reset(); this.onAction('diagnostics', 'reset'); });
     this.$('diagnostics-measure').addEventListener('click', () => { if (this.model.measure(performance.now())) this.onAction('diagnostics', 'measurement_started'); });
+    this.$('diagnostics-apply').addEventListener('click', () => {
+      try {
+        this.compensation.apply(this.model.device, this.model.center);
+        this.$('diagnostics-deadzone').value = Math.round(this.compensation.profile.deadzone * 100);
+        this.$('diagnostics-correction-status').textContent = 'Compensation enabled for this connected controller. Try the sticks below, then play a round.';
+        this.onAction('drift_compensation', 'applied');
+      } catch (error) { this.$('diagnostics-correction-status').textContent = error.message; }
+    });
+    this.$('diagnostics-remove').addEventListener('click', () => { this.compensation.clear(); this.$('diagnostics-correction-status').textContent = 'Compensation removed. Default input deadzone restored.'; this.onAction('drift_compensation', 'removed'); });
+    this.$('diagnostics-deadzone').addEventListener('input', event => this.compensation.setDeadzone(Number(event.target.value) / 100));
+    this.$('diagnostics-deadzone').addEventListener('change', () => this.onAction('drift_compensation', 'adjusted'));
     window.addEventListener('blur', () => this.model.cancelMeasure());
     document.addEventListener('visibilitychange', () => { if (document.hidden) this.model.cancelMeasure(); });
   }
@@ -29,6 +40,11 @@ export class DiagnosticsView {
   }
   render(pad, time) {
     const model = this.model;
+    const active = this.compensation.profile?.device === model.device;
+    this.$('diagnostics-apply').disabled = !model.center || !!model.measurement || pad?.mapping !== 'standard' || pad.axes.length < 4;
+    this.$('diagnostics-remove').disabled = !active;
+    this.$('diagnostics-deadzone').disabled = !active;
+    this.$('diagnostics-deadzone-value').textContent = active ? Math.round(this.compensation.profile.deadzone * 100) + '%' : 'Off';
     this.$('diagnostics-device').textContent = pad ? pad.id : 'Connect a controller and press any button to begin.';
     this.$('diagnostics-measure').disabled = !pad || !!model.measurement;
     this.$('diagnostics-measure').textContent = model.measurement ? 'Measuring…' : 'Measure resting sticks';
@@ -38,6 +54,8 @@ export class DiagnosticsView {
       const x = model.axes[offset], y = model.axes[offset + 1];
       this.$('diagnostics-' + side + '-dot').style.transform = `translate(${x * 55}px,${y * 55}px)`;
       this.$('diagnostics-' + side + '-values').textContent = pad ? `X ${x.toFixed(4)} · Y ${y.toFixed(4)}` : 'Waiting for controller';
+      const corrected = this.compensation.axis(model.device, side, x, y);
+      this.$('diagnostics-' + side + '-corrected').textContent = active ? `With compensation: X ${corrected.x.toFixed(4)} · Y ${corrected.y.toFixed(4)}` : 'Compensation off';
       const center = model.center;
       this.$('diagnostics-' + side + '-center').textContent = center ? `Resting offset ${(Math.hypot(center.axes[offset], center.axes[offset + 1]) * 100).toFixed(2)}% · peak ${(center.peaks[offset / 2] * 100).toFixed(2)}%` : 'No resting sample yet';
     }
