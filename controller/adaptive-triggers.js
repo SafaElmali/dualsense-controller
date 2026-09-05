@@ -39,7 +39,7 @@ export class AdaptiveTriggers {
     hid?.addEventListener('disconnect', this.onDisconnect);
   }
 
-  update(message) { this.onChange({ connected: !!this.device, active: this.active, message }); }
+  update(message) { this.onChange({ device: this.device, connected: !!this.device, active: this.active, message }); }
 
   static transportFor(device) {
     if (!AdaptiveTriggers.filters.some(filter => filter.vendorId === device.vendorId && filter.productId === device.productId)) {
@@ -104,9 +104,9 @@ export class AdaptiveTriggers {
     return bytes;
   }
 
-  async connect() {
+  async connect({ enableEffects = true } = {}) {
     if (!this.hid) throw new Error('Use desktop Chrome or Edge to enable real trigger effects.');
-    if (this.device) return this.setEnabled(true);
+    if (this.device) return enableEffects ? this.setEnabled(true) : undefined;
     const generation = ++this.generation;
     this.update('Choose your DualSense in the browser’s device picker.');
     const [device] = await this.hid.requestDevice({ filters: AdaptiveTriggers.filters });
@@ -117,7 +117,7 @@ export class AdaptiveTriggers {
     this.device = device; this.transport = transport; this.sequence = 0;
     // Reset any previous effect before taking control of the triggers.
     await this.setEnabled(false);
-    if (generation === this.generation && this.device) await this.setEnabled(true);
+    if (enableEffects && generation === this.generation && this.device) await this.setEnabled(true);
   }
 
   setMode(mode) {

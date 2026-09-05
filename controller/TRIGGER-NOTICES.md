@@ -2,7 +2,7 @@
 
 Trigger encoding adapted from John “Nielk1” Klein’s [trigger effect factories](https://gist.github.com/Nielk1/6d54cc2c00d2201ccb8c2720ad7538db). The implementation uses Weapon (0x25), Feedback (0x21), Vibration (0x26), and Off (0x05).
 
-USB and Bluetooth report layout researched using [DualSense Explorer](https://github.com/nondebug/dualsense/blob/main/dualsense-explorer.html). Bluetooth packets include the HID output CRC32 prefix and rolling sequence number. Reports enable only the two trigger fields.
+USB and Bluetooth report layout researched using [DualSense Explorer](https://github.com/nondebug/dualsense/blob/main/dualsense-explorer.html). Bluetooth packets include the HID output CRC32 prefix and rolling sequence number. Reports enable only the two trigger fields. Touchpad decoding uses the USB/Bluetooth input offsets documented by DualSense Explorer. The [Linux PlayStation driver](https://github.com/torvalds/linux/blob/master/drivers/hid/hid-playstation.c) documents the 1920 × 1080 touch coordinate range.
 
 MIT License
 

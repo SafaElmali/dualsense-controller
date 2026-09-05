@@ -8,7 +8,10 @@ export class DualSenseView {
     this.canvas = canvas;
     this.input = input;
     this.controls = new Map();
-    this.pressedColor = new THREE.Color('#468cff');
+    this.pressedColor = new THREE.Color('#f4d878');
+    this.touchSources = new Map();
+    this.touchMarkers = [];
+    this.touchRaycaster = new THREE.Raycaster();
     this.shellMaterials = [];
     this.buttonMaterials = [];
     this.symbolMaterials = [];
@@ -51,9 +54,6 @@ export class DualSenseView {
     this.scene.environment = this.environment.texture;
     this.scene.environmentIntensity = .62;
     environment.dispose(); pmrem.dispose();
-    this.touchMarker = new THREE.Mesh(new THREE.RingGeometry(.065, .08, 40), new THREE.MeshBasicMaterial({ color: 0xa7c8ff, transparent: true, opacity: .75, depthWrite: false, side: THREE.DoubleSide }));
-    this.touchMarker.visible = false;
-    this.model.add(this.touchMarker);
     this.resizeObserver = new ResizeObserver(() => this.resize());
     this.resizeObserver.observe(canvas.parentElement);
     this.resize();
@@ -123,18 +123,27 @@ export class DualSenseView {
       group.position.copy(pivot);
       group.userData.rest = pivot.clone();
       group.userData.surface = new THREE.Vector3(pivot.x, bounds.getCenter(new THREE.Vector3()).y, bounds.max.z);
-      if (id === 'l2' || id === 'r2') {
-        group.userData.surface.z = bounds.min.z;
-        for (const child of group.children) {
-          child.userData.restEmissive = child.material.emissive.clone();
-          child.userData.restEmissiveIntensity = child.material.emissiveIntensity;
-        }
-      }
+      if (id === 'l2' || id === 'r2') group.userData.surface.z = bounds.min.z;
+      if (id === 'touchpad') group.userData.touchBounds = bounds.clone().translate(pivot.clone().negate());
     }
     const required = ['triangle','circle','cross','square','up','down','left','right','l1','r1','l2','r2','left-stick','right-stick','touchpad','ps','mute','create','options'];
     const missing = required.filter(id => !this.controls.has(id));
     if (missing.length) throw new Error('Controller model is missing parts: ' + missing.join(', '));
     for (const id of ['triangle','circle','cross','square','up','down','left','right']) this.addSymbol(id);
+    for (const group of this.controls.values()) {
+      for (const child of group.children) {
+        child.userData.restEmissive = child.material.emissive.clone();
+        child.userData.restEmissiveIntensity = child.material.emissiveIntensity;
+        child.material.userData.restColor = child.material.color.clone();
+      }
+    }
+    const touchpad = this.controls.get('touchpad');
+    this.touchSurfaces = [...touchpad.children];
+    for (let i = 0; i < 2; i++) {
+      const marker = new THREE.Mesh(new THREE.RingGeometry(.065, .085, 48), new THREE.MeshBasicMaterial({ color: '#d7a83d', transparent: true, opacity: .95, toneMapped: false, depthWrite: false, side: THREE.DoubleSide }));
+      marker.raycast = () => {}; marker.visible = false;
+      touchpad.add(marker); this.touchMarkers.push(marker);
+    }
     this.model.rotation.set(this.pose.x, this.pose.y, this.pose.z);
     this.ready = true;
     this.resize();
@@ -197,9 +206,12 @@ export class DualSenseView {
       red: { shell: '#9e304b', button: '#5c2e42', symbol: '#c090a6' },
     };
     const palette = finishes[finish] || finishes.white;
-    for (const material of this.shellMaterials) material.color.set(palette.shell);
-    for (const material of this.buttonMaterials) material.color.set(palette.button);
-    for (const material of this.symbolMaterials) material.color.set(palette.symbol);
+    for (const [materials, color] of [[this.shellMaterials, palette.shell], [this.buttonMaterials, palette.button], [this.symbolMaterials, palette.symbol]]) {
+      for (const material of materials) {
+        material.color.set(color);
+        if (material.userData.restColor) material.userData.restColor.copy(material.color);
+      }
+    }
   }
 
   setView(view, { resetZoom = true } = {}) {
@@ -218,7 +230,7 @@ export class DualSenseView {
     this.cursor.set((clientX - box.left) / box.width * 2 - 1, -(clientY - box.top) / box.height * 2 + 1);
     this.model.updateMatrixWorld(true);
     this.raycaster.setFromCamera(this.cursor, this.camera);
-    const hit = this.raycaster.intersectObject(this.model, true).find(item => item.object !== this.touchMarker);
+    const hit = this.raycaster.intersectObject(this.model, true)[0];
     if (!hit) return null;
     return { id: hit.object.userData.control || hit.object.parent.userData.control || null, point: this.model.worldToLocal(hit.point.clone()) };
   }
@@ -233,9 +245,39 @@ export class DualSenseView {
     return localRay.intersectPlane(new THREE.Plane(new THREE.Vector3(0, 0, 1), -group.userData.surface.z), new THREE.Vector3());
   }
 
+  setTouchContacts(source, contacts) {
+    if (contacts.length) this.touchSources.set(source, contacts);
+    else this.touchSources.delete(source);
+  }
+
   touch(point) {
-    if (!point) return;
-    this.touchMarker.position.copy(point); this.touchMarker.position.z += .009;
+    const group = this.controls.get('touchpad');
+    if (!point || !group) { this.setTouchContacts('pointer', []); return; }
+    const local = point.clone().sub(group.userData.rest);
+    const bounds = group.userData.touchBounds;
+    this.setTouchContacts('pointer', [{ x: THREE.MathUtils.clamp((local.x - bounds.min.x) / (bounds.max.x - bounds.min.x), 0, 1), y: THREE.MathUtils.clamp((bounds.max.y - local.y) / (bounds.max.y - bounds.min.y), 0, 1) }]);
+  }
+
+  renderTouches() {
+    const group = this.controls.get('touchpad');
+    if (!group) return;
+    const contacts = this.touchSources.get('pointer') || this.touchSources.get('hardware') || (this.input.button('touchpad') ? [{ x: .5, y: .5 }] : []);
+    const bounds = group.userData.touchBounds;
+    group.updateWorldMatrix(true, true);
+    this.touchMarkers.forEach((marker, index) => {
+      const contact = contacts[index]; marker.visible = !!contact;
+      if (!contact) return;
+      // Raycast onto the actual curved pad rather than a floating rectangle.
+      const origin = new THREE.Vector3(THREE.MathUtils.lerp(bounds.min.x + .09, bounds.max.x - .09, contact.x), THREE.MathUtils.lerp(bounds.max.y - .09, bounds.min.y + .09, contact.y), bounds.max.z + 1);
+      const direction = new THREE.Vector3(0, 0, -1).transformDirection(group.matrixWorld);
+      this.touchRaycaster.set(group.localToWorld(origin), direction);
+      const hit = this.touchRaycaster.intersectObjects(this.touchSurfaces, false)[0];
+      marker.visible = !!hit;
+      if (hit) {
+        marker.position.copy(group.worldToLocal(hit.point)).addScaledVector(hit.face.normal, .012);
+        marker.quaternion.setFromUnitVectors(new THREE.Vector3(0, 0, 1), hit.face.normal);
+      }
+    });
   }
 
   projected(id) {
@@ -268,21 +310,27 @@ export class DualSenseView {
         group.position.z += (targetZ - group.position.z) * blend;
       } else if (id === 'l2' || id === 'r2') {
         group.rotation.x += (-this.input.button(id) * .21 - group.rotation.x) * blend;
-        for (const child of group.children) {
-          const pressed = this.input.button(id) > .05;
-          child.material.emissive.copy(pressed ? this.pressedColor : child.userData.restEmissive);
-          child.material.emissiveIntensity = pressed ? .45 : child.userData.restEmissiveIntensity;
-        }
+
       } else {
         const travel = id === 'touchpad' ? .016 : ['l1', 'r1'].includes(id) ? .025 : .032;
         group.position.z += (rest.z - this.input.button(id) * travel - group.position.z) * blend;
       }
-      if (id === 'mute') {
-        for (const child of group.children) { child.material.emissive.set(this.muted ? '#dc6615' : '#000000'); child.material.emissiveIntensity = this.muted ? .7 : 0; }
+      const buttonId = id === 'left-stick' ? 'l3' : id === 'right-stick' ? 'r3' : id;
+      const pressed = this.input.button(buttonId) > .05 || (id === 'touchpad' && this.touchSources.size > 0);
+      group.userData.glow = THREE.MathUtils.lerp(group.userData.glow || 0, pressed ? 1 : 0, blend);
+      for (const child of group.children) {
+        if (!child.userData.restEmissive) continue;
+        const glow = child.name.endsWith('-symbol') ? 0 : group.userData.glow;
+        const muted = id === 'mute' && this.muted;
+        child.material.color.copy(child.material.userData.restColor).lerp(this.pressedColor, glow * .4);
+        child.material.emissive.copy(child.userData.restEmissive);
+        if (muted) child.material.emissive.set('#dc6615');
+        child.material.emissive.lerp(this.pressedColor, glow);
+        child.material.emissiveIntensity = THREE.MathUtils.lerp(muted ? .7 : child.userData.restEmissiveIntensity, .35, glow);
       }
     }
     for (const material of this.lightMaterials) material.emissiveIntensity = this.lights ? .7 : 0;
-    this.touchMarker.visible = this.input.button('touchpad') > 0;
+    this.renderTouches();
     this.renderer.render(this.scene, this.camera);
     this.onRender?.();
   }

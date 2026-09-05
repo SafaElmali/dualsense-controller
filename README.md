@@ -17,7 +17,7 @@ Open [localhost:8000](http://localhost:8000).
 - Click or tap the buttons.
 - Drag either analog stick; release to center. A short tap clicks L3 or R3.
 - Hold a trigger and drag upward to vary its pressure.
-- **Auto** follows your inputs: L2/R2 show a tilted rear view, L1/R1 show the shoulders, and face buttons or sticks show the front. Held triggers take priority so aiming and firing do not flip the camera back and forth. The last angle stays after release. Trigger caps light up while pressed, with live L2/R2 pressure labels in the automatic rear view.
+- **Auto** follows your inputs: L2/R2 show a tilted rear view, L1/R1 show the shoulders, and face buttons or sticks show the front. Held triggers take priority so aiming and firing do not flip the camera back and forth. The last angle stays after release. All buttons glow soft yellow while pressed; trigger caps also light up, with live L2/R2 pressure labels in the automatic rear view.
 - Drag the shell to rotate the controller; scroll to zoom. Dragging or choosing a fixed angle pauses Auto. Choose Auto to resume, or Reset to restore the front and Auto. Camera movement respects reduced-motion preferences.
 - Choose Front, Angle, or Back, and switch between White, Midnight Black, and Cosmic Red finishes.
 - Enable optional button sounds or connect a standard-mapped gamepad to mirror its inputs.
@@ -100,3 +100,9 @@ Safari, Firefox, and browsers without WebHID keep the virtual controls but disab
 The feature sends only adaptive-trigger output fields, with no audio, rumble, light, or microphone commands. It does not recreate a particular game's trigger patterns. Software checks cover packet encoding, Bluetooth CRC, unsupported devices, canceled selection, all gun presets and mode switching, concurrent Off, failed writes, and disconnect cleanup. Physical hardware feel requires manual verification.
 
 Protocol references and the adapted trigger encoder's license are in [controller/TRIGGER-NOTICES.md](controller/TRIGGER-NOTICES.md).
+
+## Touchpad finger tracking
+
+Choose **Enable touchpad** in desktop Chrome or Edge and select your DualSense. This shares the hardware connection with adaptive triggers and does not enable trigger effects. USB and full Bluetooth reports carry up to two finger positions; the app draws a yellow circle for each contact without requiring a touchpad click. Moving or lifting a finger updates or removes its circle. You can also drag the on-screen touchpad. No vibration is added.
+
+Auto brings the touchpad into view when touched (held triggers retain camera priority). Finger circles clear on focus loss, Reset, and disconnect. Bluetooth tracking requests the extended input report via feature report 0x05; try USB if your browser/controller cannot provide it. Normal Gamepad API input alone cannot provide finger positions. Touch coordinates stay in the browser and are not sent to analytics.

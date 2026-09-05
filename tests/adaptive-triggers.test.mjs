@@ -138,6 +138,22 @@ test('connection resets old effects, enables shooting, and releases before closi
   assert.equal(pad.reports.at(-1).data[10], 5); assert.equal(pad.opened, false); assert.equal(service.active, false);
 });
 
+test('touchpad-only connection does not enable effects or turn off already enabled triggers', async () => {
+  const { service, pad, states } = setup();
+  await service.connect({ enableEffects: false });
+  assert.equal(service.active, false);
+  assert.deepEqual(pad.reports.map(report => report.data[10]), [5]);
+  assert.equal(states.at(-1).device, pad);
+  await service.connect();
+  assert.equal(service.active, true);
+  const writes = pad.reports.length;
+  await service.connect({ enableEffects: false });
+  assert.equal(service.active, true);
+  assert.equal(pad.reports.length, writes);
+  await service.disconnect();
+  assert.equal(states.at(-1).device, null);
+});
+
 test('leaving during device selection prevents effects from being enabled', async () => {
   const { service, hid, pad } = setup();
   let choose;

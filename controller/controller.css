@@ -87,4 +87,4 @@ kbd{font:11px ui-monospace,monospace;border:1px solid #ffffff1f;background:#ffff
 @media(max-width:650px){.trigger-effect-actions{width:100%}#enable-triggers{flex:1}.trigger-effects{gap:14px}}
 
 .trigger-tag{position:absolute;transform:translate(-50%,-130%);pointer-events:none;z-index:3;padding:5px 9px;border:1px solid #6682af66;border-radius:7px;background:#111a2bee;color:#bac8e0;font:12px ui-monospace,monospace;white-space:nowrap}
-.trigger-tag.active{border-color:#8eb8ff;color:#e7f0ff;background:#183765ee;box-shadow:0 0 18px #497dce33}
+.trigger-tag.active{border-color:#e7cd86;color:#fff1c7;background:#463b20ee;box-shadow:0 0 18px #e4c46222}

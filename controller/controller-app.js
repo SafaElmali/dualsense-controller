@@ -2,6 +2,7 @@ import { AdaptiveTriggers } from './adaptive-triggers.js';
 import { analytics } from './analytics.js';
 import { ControllerInput } from './input-state.js';
 import { InputCamera } from './input-camera.js';
+import { TouchpadInput } from './touchpad-input.js';
 import { DualSenseView } from './controller-view.js';
 
 const $ = id => document.getElementById(id);
@@ -30,7 +31,16 @@ $('auto-view').addEventListener('click', () => setAutoView(!inputCamera.enabled)
 
 const triggerStatus = $('trigger-effect-status');
 let triggerBusy = false;
+const touchpad = new TouchpadInput(contacts => {
+  view?.setTouchContacts('hardware', contacts);
+  inputCamera.observe({ type: 'button', id: 'touch-contact', value: contacts.length ? 1 : 0 });
+}, (connected, message) => {
+  $('touchpad-status').textContent = message;
+  $('enable-touchpad').textContent = connected ? 'Touchpad connected' : 'Enable touchpad';
+  $('enable-touchpad').disabled = connected || triggerBusy || !navigator.hid;
+});
 const triggers = new AdaptiveTriggers(navigator.hid, state => {
+  void touchpad.attach(state.device, triggers.transport?.name === 'Bluetooth');
   triggerStatus.textContent = state.message;
   $('disable-triggers').disabled = !state.connected;
   $('enable-triggers').textContent = state.active ? 'Trigger effects enabled' : 'Enable trigger effects';
@@ -38,6 +48,8 @@ const triggers = new AdaptiveTriggers(navigator.hid, state => {
 });
 if (!navigator.hid || !window.isSecureContext) {
   $('enable-triggers').disabled = true;
+  $('enable-touchpad').disabled = true;
+  $('touchpad-status').textContent = 'Use desktop Chrome or Edge for physical finger tracking. Drag the on-screen touchpad to try the circle here.';
   triggerStatus.textContent = 'Open this site in desktop Chrome or Edge to feel real trigger resistance.';
 }
 function stopTriggers() {
@@ -58,6 +70,7 @@ $('trigger-mode').addEventListener('change', async event => {
 });
 $('enable-triggers').addEventListener('click', async () => {
   triggerBusy = true; $('enable-triggers').disabled = true;
+  $('enable-touchpad').disabled = true;
   try {
     await triggers.connect();
     if (document.hidden) await triggers.pause();
@@ -66,6 +79,19 @@ $('enable-triggers').addEventListener('click', async () => {
     triggerStatus.textContent = error.name === 'NotAllowedError' ? 'Controller access was not granted. Choose Enable to try again.' : error.message;
   } finally {
     triggerBusy = false; $('enable-triggers').disabled = triggers.active || !navigator.hid;
+    $('enable-touchpad').disabled = !!touchpad.device || !navigator.hid;
+  }
+});
+$('enable-touchpad').addEventListener('click', async () => {
+  triggerBusy = true; $('enable-touchpad').disabled = true; $('enable-triggers').disabled = true;
+  try {
+    await triggers.connect({ enableEffects: false });
+    if (!triggers.device) $('touchpad-status').textContent = 'No controller selected. Choose Enable touchpad to try again.';
+  } catch (error) {
+    $('touchpad-status').textContent = error.name === 'NotAllowedError' ? 'Controller access was not granted. Choose Enable touchpad to try again.' : error.message;
+  } finally {
+    triggerBusy = false; $('enable-touchpad').disabled = !!touchpad.device || !navigator.hid;
+    $('enable-triggers').disabled = triggers.active || !navigator.hid;
   }
 });
 $('disable-triggers').addEventListener('click', stopTriggers);
@@ -121,7 +147,9 @@ function releaseAll() {
   for (const timer of timers) clearTimeout(timer); timers.clear();
   const pointerIds = [...pointers.keys()]; pointers.clear();
   for (const id of pointerIds) if (canvas.hasPointerCapture(id)) canvas.releasePointerCapture(id);
-  input.reset(); canvas.style.cursor = 'grab';
+  input.reset(); view?.setTouchContacts('pointer', []); view?.setTouchContacts('hardware', []);
+  inputCamera.observe({ type: 'button', id: 'touch-contact', value: 0 });
+  canvas.style.cursor = 'grab';
 }
 function keyAxes() {
   for (const [side, codes] of Object.entries(stickKeys)) {
@@ -142,8 +170,12 @@ window.addEventListener('keyup', event => {
   if (keyMap[event.code]) input.setButton(keyMap[event.code], 'key:' + event.code, 0);
   if (analogCodes.has(event.code)) { keyAxes(); status('Stick centered', false); }
 });
-window.addEventListener('blur', releaseAll);
-document.addEventListener('visibilitychange', () => { if (document.hidden) releaseAll(); });
+window.addEventListener('blur', () => { touchpad.setPaused(true); releaseAll(); });
+window.addEventListener('focus', () => { touchpad.setPaused(document.hidden || help.open); });
+document.addEventListener('visibilitychange', () => {
+  touchpad.setPaused(document.hidden || !document.hasFocus() || help.open);
+  if (document.hidden) releaseAll();
+});
 
 canvas.addEventListener('pointerdown', event => {
   if (!view?.ready || event.button !== 0) return;
@@ -192,6 +224,7 @@ function releasePointer(event, cancelled = false) {
       input.setButton(id,'tap',1); later(()=>input.setButton(id,'tap',0),120);
     } else status('Stick centered',false);
   } else if (pointer.id) input.setButton(pointer.id,'pointer:'+event.pointerId,0);
+  if (pointer.id === 'touchpad') view.touch(null);
   if (inputCamera.enabled && !pointers.size) inputCamera.setEnabled(true);
   canvas.style.cursor='grab';
 }
@@ -222,7 +255,8 @@ $('reset').addEventListener('click',()=>{
   inputCamera.reset();$('auto-view').setAttribute('aria-pressed','true');
   status('Controller reset',false);$('announcement').textContent='Controller reset. Sticks centered and front view restored.';
 });
-$('show-help').addEventListener('click',()=>{stopTriggers();releaseAll();help.showModal();});
+$('show-help').addEventListener('click',()=>{stopTriggers();touchpad.setPaused(true);releaseAll();help.showModal();});
+help.addEventListener('close', () => touchpad.setPaused(document.hidden || !document.hasFocus()));
 $('close-help').addEventListener('click',()=>help.close());
 help.addEventListener('click',event=>{if(event.target!==help)return;const r=help.getBoundingClientRect();if(event.clientX<r.left||event.clientX>r.right||event.clientY<r.top||event.clientY>r.bottom)help.close();});
 $('retry').addEventListener('click',()=>location.reload());
