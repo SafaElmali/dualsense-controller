@@ -1,4 +1,4 @@
-// Feedback encoding adapted from Nielk1's MIT-licensed trigger research.
+// Trigger encoding adapted from Nielk1's MIT-licensed trigger research.
 // See TRIGGER-NOTICES.md for attribution and protocol references.
 export class AdaptiveTriggers {
   static filters = [{ vendorId: 0x054c, productId: 0x0ce6 }, { vendorId: 0x054c, productId: 0x0df2 }];
@@ -8,6 +8,7 @@ export class AdaptiveTriggers {
     this.onChange = onChange;
     this.device = null;
     this.transport = null;
+    this.mode = 'shooting';
     this.requested = false;
     this.active = false;
     this.generation = 0;
@@ -41,10 +42,20 @@ export class AdaptiveTriggers {
     throw new Error('This controller connection is not supported. Try a USB data cable.');
   }
 
-  static effect(enabled) {
+  static effect(enabled, mode = 'shooting') {
     const bytes = new Uint8Array(11);
-    bytes[0] = enabled ? 0x21 : 0x05;
+    bytes[0] = 0x05;
     if (!enabled) return bytes;
+    if (mode === 'shooting') {
+      // Native Weapon: a force-5 wall from zone 3 to 5, then a sudden release.
+      // Firmware rearms the effect when the trigger returns before the start zone.
+      bytes[0] = 0x25;
+      new DataView(bytes.buffer).setUint16(1, (1 << 3) | (1 << 5), true);
+      bytes[3] = 4;
+      return bytes;
+    }
+    if (mode !== 'resistance') throw new Error('Unknown trigger effect.');
+    bytes[0] = 0x21;
     // Gentle feedback (3 of 8), beginning at zone 3 of 10.
     let zones = 0, forces = 0;
     for (let zone = 3; zone < 10; zone++) { zones |= 1 << zone; forces |= 2 << (zone * 3); }
@@ -53,13 +64,13 @@ export class AdaptiveTriggers {
     return bytes;
   }
 
-  static packet(transport, enabled, sequence = 0) {
+  static packet(transport, enabled, sequence = 0, mode = 'shooting') {
     const bytes = new Uint8Array(transport.length);
     const offset = transport.offset;
     // Only the two trigger-enable flags; do not change audio, lights, or rumble.
     bytes[offset] = 0x0c;
-    bytes.set(AdaptiveTriggers.effect(enabled), offset + 10); // R2
-    bytes.set(AdaptiveTriggers.effect(enabled), offset + 21); // L2
+    bytes.set(AdaptiveTriggers.effect(enabled, mode), offset + 10); // R2
+    bytes.set(AdaptiveTriggers.effect(enabled, mode), offset + 21); // L2
     if (transport.reportId === 0x31) {
       bytes[0] = (sequence & 15) << 4; bytes[1] = 0x10;
       let crc = 0xffffffff;
@@ -88,17 +99,28 @@ export class AdaptiveTriggers {
     if (generation === this.generation && this.device) await this.setEnabled(true);
   }
 
+  setMode(mode) {
+    if (!['shooting', 'resistance'].includes(mode)) throw new Error('Unknown trigger effect.');
+    this.mode = mode;
+    // Preserve Off, including when a previous write is still in flight.
+    return this.setEnabled(this.requested);
+  }
+
   setEnabled(enabled) {
     this.requested = enabled;
     const device = this.device, transport = this.transport;
     const operation = this.queue.then(async () => {
       if (!device || device !== this.device || !device.opened) return;
       const effect = this.requested;
+      const mode = this.mode;
       try {
-        await device.sendReport(transport.reportId, AdaptiveTriggers.packet(transport, effect, this.sequence++));
+        await device.sendReport(transport.reportId, AdaptiveTriggers.packet(transport, effect, this.sequence++, mode));
         if (device !== this.device) return;
         this.active = effect;
-        this.update(effect ? `${transport.name} connected. Squeeze L2 or R2 to feel resistance.` : 'Trigger effects off. Press Enable to try them again.');
+        const instruction = mode === 'shooting'
+          ? 'Pull L2 or R2 through the resistance to feel the shot break. Release to fire again.'
+          : 'Squeeze L2 or R2 to feel steady resistance.';
+        this.update(effect ? `${transport.name} connected. ${instruction}` : 'Trigger effects off. Press Enable to try them again.');
       } catch {
         this.requested = false; this.active = false;
         // A failed write may still have reached the device. Attempt an explicit release.

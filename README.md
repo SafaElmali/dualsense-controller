@@ -90,12 +90,12 @@ The public project token in `controller/analytics.js` only allows event ingestio
 
 ## Real adaptive triggers
 
-In desktop Chrome or Edge, connect a Sony DualSense or DualSense Edge using USB or Bluetooth, then click **Enable trigger effects** and select it in the browser device picker. The app programs both triggers with gentle resistance starting around the first third of travel. Squeeze the physical L2/R2 triggers to feel it; the Gamepad API continues to mirror your inputs.
+In desktop Chrome or Edge, connect a Sony DualSense or DualSense Edge using USB or Bluetooth, then click **Enable trigger effects** and select it in the browser device picker. **Shooting** (default) creates a resistance wall around the first third of travel, then suddenly releases around halfway through the pull. Release the trigger to rearm the next shot. **Resistance** provides the original gentle, steady force. You can switch effects while enabled; changing modes while Off leaves them off. Squeeze the physical L2/R2 triggers to feel it; the Gamepad API continues to mirror your inputs.
 
 **Off**, **Reset**, opening Controls, and leaving the tab send the explicit Off effect. Returning to the tab requires enabling effects again. Closing the page attempts to release and close the device; abrupt browser termination cannot guarantee a final hardware message. Disconnect the controller if resistance persists.
 
 Safari, Firefox, and browsers without WebHID keep the virtual controls but disable hardware effects. HTTPS or localhost is required. If Bluetooth is unavailable or another controller app has exclusive access, try a USB data cable and close that app.
 
-The feature sends only adaptive-trigger output fields, with no audio, rumble, light, or microphone commands. It does not recreate a particular game's trigger patterns. Software checks cover packet encoding, Bluetooth CRC, unsupported devices, canceled selection, concurrent Off, failed writes, and disconnect cleanup. Physical hardware feel requires manual verification.
+The feature sends only adaptive-trigger output fields, with no audio, rumble, light, or microphone commands. It does not recreate a particular game's trigger patterns. Software checks cover packet encoding, Bluetooth CRC, unsupported devices, canceled selection, shooting/resistance mode switching, concurrent Off, failed writes, and disconnect cleanup. Physical hardware feel requires manual verification.
 
 Protocol references and the adapted trigger encoder's license are in [controller/TRIGGER-NOTICES.md](controller/TRIGGER-NOTICES.md).

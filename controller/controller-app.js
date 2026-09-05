@@ -31,6 +31,14 @@ if (!navigator.hid || !window.isSecureContext) {
 function stopTriggers() {
   void triggers.pause().catch(error => { triggerStatus.textContent = error.message; });
 }
+$('trigger-mode').value = triggers.mode;
+$('trigger-mode').addEventListener('change', async event => {
+  $('trigger-mode-description').textContent = event.target.value === 'shooting'
+    ? 'Shooting: pull through the resistance for a sudden release. Let go to fire again.'
+    : 'Resistance: a steady force pushes back as you squeeze either trigger.';
+  try { await triggers.setMode(event.target.value); }
+  catch (error) { triggerStatus.textContent = error.message; }
+});
 $('enable-triggers').addEventListener('click', async () => {
   triggerBusy = true; $('enable-triggers').disabled = true;
   try {
