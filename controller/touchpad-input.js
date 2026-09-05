@@ -6,8 +6,9 @@ export class TouchpadInput {
     this.onStatus = onStatus;
     this.device = null;
     this.paused = false;
+    this.enabled = true;
     this.onReport = event => {
-      if (event.device !== this.device || this.paused) return;
+      if (event.device !== this.device || this.paused || !this.enabled) return;
       const contacts = TouchpadInput.decode(event.reportId, event.data);
       if (contacts !== null) this.onChange(contacts);
     };
@@ -37,13 +38,19 @@ export class TouchpadInput {
     this.onChange([]);
     if (!device) { this.onStatus(false, 'Connect your DualSense to follow your finger on its touchpad.'); return; }
     device.addEventListener('inputreport', this.onReport);
-    this.onStatus(true, 'Move a finger on your DualSense touchpad. No click needed.');
+    this.onStatus(true, this.enabled ? 'Move a finger on your DualSense touchpad. No click needed.' : 'Touchpad tracking off. Click the touchpad icon to enable it.');
     if (bluetooth) {
       try { await device.receiveFeatureReport(0x05); }
       catch {
-        if (device === this.device) this.onStatus(true, 'If finger tracking is unavailable over Bluetooth, try a USB data cable.');
+        if (device === this.device && this.enabled) this.onStatus(true, 'If finger tracking is unavailable over Bluetooth, try a USB data cable.');
       }
     }
+  }
+
+  setEnabled(enabled) {
+    this.enabled = enabled;
+    if (!enabled) this.onChange([]);
+    this.onStatus(!!this.device, enabled && this.device ? 'Move a finger on your DualSense touchpad. No click needed.' : 'Touchpad tracking off. Click the touchpad icon to enable it.');
   }
 
   setPaused(paused) {

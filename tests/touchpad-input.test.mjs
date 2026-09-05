@@ -62,3 +62,29 @@ test('failed Bluetooth feature reads offer USB without losing the input listener
   await service.attach({ addEventListener() {}, receiveFeatureReport: async () => { throw Error(); } }, true);
   assert.match(statuses.at(-1), /USB/);
 });
+
+test('turning touchpad off clears contacts and ignores movement without closing the shared device', async () => {
+  const listeners = new Set(), frames = [], statuses = [];
+  const device = { addEventListener: (_, listener) => listeners.add(listener), removeEventListener: (_, listener) => listeners.delete(listener), close() { assert.fail('Shared device must stay open'); } };
+  const touchpad = new TouchpadInput(points => frames.push(points), (connected, message) => statuses.push({ connected, message }));
+  await touchpad.attach(device);
+  const input = report(false, [{ id: 1, x: 500, y: 300 }]);
+  for (const listener of listeners) listener({ device, ...input });
+  assert.equal(frames.at(-1).length, 1);
+  touchpad.setEnabled(false); assert.deepEqual(frames.at(-1), []);
+  touchpad.setPaused(true); touchpad.setPaused(false); await touchpad.attach(device);
+  for (const listener of listeners) listener({ device, ...input });
+  assert.deepEqual(frames.at(-1), []); assert.equal(touchpad.device, device); assert.equal(listeners.size, 1);
+  assert.equal(statuses.at(-1).connected, true); assert.match(statuses.at(-1).message, /off/);
+  touchpad.setEnabled(true);
+  for (const listener of listeners) listener({ device, ...input });
+  assert.equal(frames.at(-1).length, 1);
+});
+
+test('a late Bluetooth feature failure cannot overwrite a deliberate touchpad Off', async () => {
+  let reject; const statuses = [];
+  const device = { addEventListener() {}, receiveFeatureReport: () => new Promise((_, fail) => { reject = fail; }) };
+  const touchpad = new TouchpadInput(() => {}, (_, message) => statuses.push(message));
+  const pending = touchpad.attach(device, true); touchpad.setEnabled(false); reject(Error('Bluetooth unavailable')); await pending;
+  assert.equal(touchpad.enabled, false); assert.match(statuses.at(-1), /off/);
+});

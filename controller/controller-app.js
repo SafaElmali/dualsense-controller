@@ -38,16 +38,33 @@ $('auto-view').addEventListener('click', () => setAutoView(!inputCamera.enabled)
 const compensation = new StickCompensation();
 const leaderboardClient = new LeaderboardClient();
 const triggerStatus = $('trigger-effect-status');
-let triggerBusy = false;
+let triggerBusy = false, sensorNoticeTimer;
+function sensorStatus(feature, message) {
+  const node = $(feature + '-status'), changed = node.textContent !== message;
+  node.textContent = message;
+  if (feature === 'gyro') $('range-gyro-status').textContent = message;
+  if (changed) {
+    clearTimeout(sensorNoticeTimer); $('sensor-notice').textContent = message; $('sensor-notice').hidden = false;
+    sensorNoticeTimer = setTimeout(() => { $('sensor-notice').hidden = true; }, 6500);
+  }
+}
+function renderSensorToggle(id, feature, active) {
+  const button = $(id), action = (active ? 'Disable ' : 'Enable ') + feature;
+  button.setAttribute('aria-pressed', String(active)); button.setAttribute('aria-label', action); button.title = action;
+  $(feature + '-action').textContent = action;
+}
+function renderTouchpad() {
+  renderSensorToggle('enable-touchpad', 'touchpad', !!touchpad.device && touchpad.enabled);
+  $('enable-touchpad').disabled = triggerBusy || !navigator.hid || !window.isSecureContext;
+}
 const touchpad = new TouchpadInput(contacts => {
   view?.setTouchContacts('hardware', contacts);
   drawing?.contacts(contacts);
   inputCamera.observe({ type: 'button', id: 'touch-contact', value: contacts.length ? 1 : 0 });
 }, (connected, message) => {
-  $('touchpad-status').textContent = message;
+  sensorStatus('touchpad', message);
   if (drawing?.isOpen) drawing.message(message);
-  $('enable-touchpad').textContent = connected ? 'Touchpad connected' : 'Enable touchpad';
-  $('enable-touchpad').disabled = connected || triggerBusy || !navigator.hid;
+  renderTouchpad();
 });
 let gyroUiTime = 0;
 const gyro = new GyroInput(({ pitch, yaw, roll, dt }) => {
@@ -57,13 +74,13 @@ const gyro = new GyroInput(({ pitch, yaw, roll, dt }) => {
   if (performance.now() - gyroUiTime > 100) {
     gyroUiTime = performance.now(); $('gyro-values').textContent = `Pitch ${pitch.toFixed(1)}°/s · Yaw ${yaw.toFixed(1)}°/s · Roll ${roll.toFixed(1)}°/s${gyro.scale ? '' : ' (approx.)'}`;
   }
-}, message => { $('gyro-status').textContent = message; $('range-gyro-status').textContent = message; });
+}, message => sensorStatus('gyro', message));
 function renderGyro() {
   $('auto-view').disabled = gyro.enabled || !view?.ready;
   $('auto-view').title = gyro.enabled ? 'Turn gyro off to follow button presses' : 'Follow the controls you use';
-  for (const id of ['recenter-gyro', 'range-recenter-gyro', 'disable-gyro']) $(id).disabled = !gyro.enabled;
-  $('enable-gyro').disabled = triggerBusy || gyro.enabled || !navigator.hid || !window.isSecureContext;
-  $('enable-gyro').textContent = gyro.enabled ? 'Gyro enabled' : 'Enable gyro';
+  for (const id of ['recenter-gyro', 'range-recenter-gyro']) $(id).disabled = !gyro.enabled;
+  $('enable-gyro').disabled = triggerBusy || !navigator.hid || !window.isSecureContext;
+  renderSensorToggle('enable-gyro', 'gyro', gyro.enabled);
   $('range-gyro').disabled = triggerBusy || !!range?.connecting || !navigator.hid || !window.isSecureContext;
   $('range-gyro').textContent = gyro.enabled ? 'Disable gyro aiming' : 'Enable gyro aiming';
 }
@@ -74,18 +91,17 @@ async function enableGyro() {
   try {
     await triggers.connect({ enableEffects: false });
     if (await gyro.enable()) { pauseGyro(); analytics.featureAction('gyro', 'enabled'); }
-    else if (!triggers.device) $('gyro-status').textContent = $('range-gyro-status').textContent = 'No controller selected. Choose Enable gyro to try again.';
-  } catch (error) { $('gyro-status').textContent = $('range-gyro-status').textContent = error.name === 'NotAllowedError' ? 'Controller access was not granted. Try Enable gyro again.' : error.message; }
-  finally { triggerBusy = false; renderGyro(); $('enable-triggers').disabled = triggers.active || !navigator.hid; $('enable-touchpad').disabled = !!touchpad.device || !navigator.hid; }
+    else if (!triggers.device) sensorStatus('gyro', 'No controller selected. Click the gyro icon to try again.');
+  } catch (error) { sensorStatus('gyro', error.name === 'NotAllowedError' ? 'Controller access was not granted. Click the gyro icon to try again.' : error.message); }
+  finally { triggerBusy = false; renderGyro(); $('enable-triggers').disabled = triggers.active || !navigator.hid; renderTouchpad(); }
 }
-function disableGyro() { gyro.setEnabled(false); renderGyro(); $('gyro-status').textContent = $('range-gyro-status').textContent = 'Gyro off. Stick and mouse controls still work.'; analytics.featureAction('gyro', 'disabled'); }
+function disableGyro() { gyro.setEnabled(false); renderGyro(); sensorStatus('gyro', 'Gyro off. Stick and mouse controls still work.'); analytics.featureAction('gyro', 'disabled'); }
 function recenterGyro() {
   range?.pause();
   if (gyro.recenter()) { view?.setView('front'); if (range?.isOpen) range.game.setAim(500, 280); analytics.featureAction('gyro', 'recentered'); }
 }
-$('enable-gyro').addEventListener('click', enableGyro);
+$('enable-gyro').addEventListener('click', () => gyro.enabled ? disableGyro() : enableGyro());
 $('range-gyro').addEventListener('click', () => gyro.enabled ? disableGyro() : enableGyro());
-$('disable-gyro').addEventListener('click', disableGyro);
 for (const id of ['recenter-gyro', 'range-recenter-gyro']) $(id).addEventListener('click', recenterGyro);
 for (const event of ['blur', 'focus']) window.addEventListener(event, pauseGyro);
 document.addEventListener('visibilitychange', pauseGyro);
@@ -94,10 +110,10 @@ const gyroWatch = setInterval(() => {
   pauseGyro(); renderGyro();
   if (gyro.enabled && !gyro.paused && performance.now() - gyro.lastReport > 3000) {
     gyro.previous = null; gyro.measurement = null; gyro.received = false;
-    $('gyro-status').textContent = $('range-gyro-status').textContent = 'No motion reports received. Try a USB data cable, or reconnect your controller.';
+    sensorStatus('gyro', 'No motion reports received. Try a USB data cable, or reconnect your controller.');
   }
 }, 1000);
-window.addEventListener('pagehide', () => { clearInterval(gyroWatch); gyro.attach(null); });
+window.addEventListener('pagehide', () => { clearInterval(gyroWatch); gyro.attach(null); clearTimeout(sensorNoticeTimer); });
 const triggers = new AdaptiveTriggers(navigator.hid, state => {
   gyro.attach(state.device); renderGyro();
   void touchpad.attach(state.device, triggers.transport?.name === 'Bluetooth');
@@ -107,10 +123,10 @@ const triggers = new AdaptiveTriggers(navigator.hid, state => {
   $('enable-triggers').disabled = triggerBusy || state.active || !navigator.hid;
 });
 if (!navigator.hid || !window.isSecureContext) {
-  renderGyro(); $('gyro-status').textContent = $('range-gyro-status').textContent = 'Use desktop Chrome or Edge to enable physical gyro input.';
+  renderGyro(); sensorStatus('gyro', 'Use desktop Chrome or Edge to enable physical gyro input.');
   $('enable-triggers').disabled = true;
   $('enable-touchpad').disabled = true;
-  $('touchpad-status').textContent = 'Use desktop Chrome or Edge for physical finger tracking. Drag the on-screen touchpad to try the circle here.';
+  sensorStatus('touchpad', 'Use desktop Chrome or Edge for physical finger tracking. Drag the on-screen touchpad to try the circle here.');
   triggerStatus.textContent = 'Open this site in desktop Chrome or Edge to feel real trigger resistance.';
 }
 function stopTriggers() {
@@ -183,18 +199,21 @@ $('enable-triggers').addEventListener('click', async () => {
     triggerStatus.textContent = error.name === 'NotAllowedError' ? 'Controller access was not granted. Choose Enable to try again.' : error.message;
   } finally {
     triggerBusy = false; $('enable-triggers').disabled = triggers.active || !navigator.hid;
-    $('enable-touchpad').disabled = !!touchpad.device || !navigator.hid;
+    renderTouchpad();
   }
 });
 $('enable-touchpad').addEventListener('click', async () => {
-  triggerBusy = true; $('enable-touchpad').disabled = true; $('enable-triggers').disabled = true;
+  if (triggerBusy) return;
+  if (touchpad.device && touchpad.enabled) { touchpad.setEnabled(false); analytics.featureAction('touchpad', 'disabled'); return; }
+  triggerBusy = true; renderTouchpad(); renderGyro(); $('enable-triggers').disabled = true;
   try {
     await triggers.connect({ enableEffects: false });
-    if (!triggers.device) $('touchpad-status').textContent = 'No controller selected. Choose Enable touchpad to try again.';
+    if (triggers.device) { touchpad.setEnabled(true); analytics.featureAction('touchpad', 'enabled'); }
+    else sensorStatus('touchpad', 'No controller selected. Click the touchpad icon to try again.');
   } catch (error) {
-    $('touchpad-status').textContent = error.name === 'NotAllowedError' ? 'Controller access was not granted. Choose Enable touchpad to try again.' : error.message;
+    sensorStatus('touchpad', error.name === 'NotAllowedError' ? 'Controller access was not granted. Click the touchpad icon to try again.' : error.message);
   } finally {
-    triggerBusy = false; $('enable-touchpad').disabled = !!touchpad.device || !navigator.hid;
+    triggerBusy = false; renderTouchpad(); renderGyro();
     $('enable-triggers').disabled = triggers.active || !navigator.hid;
   }
 });
@@ -445,7 +464,8 @@ drawing = new TouchDrawingView({
   onClose: closeStudioTool,
   onConnect: async () => {
     await triggers.connect({ enableEffects: false });
-    if (!triggers.device) drawing.message('No controller selected. Try enabling the touchpad again.');
+    if (triggers.device) touchpad.setEnabled(true);
+    else drawing.message('No controller selected. Try enabling the touchpad again.');
   },
 });
 diagnostics = new DiagnosticsView({

@@ -103,7 +103,9 @@ Protocol references and the adapted trigger encoder's license are in [controller
 
 ## Touchpad finger tracking
 
-Choose **Enable touchpad** in desktop Chrome or Edge and select your DualSense. This shares the hardware connection with adaptive triggers and does not enable trigger effects. USB and full Bluetooth reports carry up to two finger positions; the app draws a yellow circle for each contact without requiring a touchpad click. Moving or lifting a finger updates or removes its circle. You can also drag the on-screen touchpad. No vibration is added.
+Use the **touchpad icon beside the 3D controller** in desktop Chrome or Edge and select your DualSense. The compact toolbar contains touchpad and gyro toggles plus gyro recentering. Hover or keyboard-focus an icon for its label and connection details; gold indicates an enabled feature. The toolbar sits below the controller on narrow screens.
+
+Touchpad tracking shares the hardware connection with adaptive triggers and does not enable trigger effects. Click its icon again to disable physical finger tracking without disconnecting gyro or adaptive triggers. USB and full Bluetooth reports carry up to two finger positions; the app draws a yellow circle for each contact without requiring a touchpad click. Moving or lifting a finger updates or removes its circle. You can also drag the on-screen touchpad. No vibration is added. PostHog records explicit `controller_touchpad_enabled` and `controller_touchpad_disabled` actions without finger coordinates.
 
 Auto brings the touchpad into view when touched (held triggers retain camera priority). Finger circles clear on focus loss, Reset, and disconnect. Bluetooth tracking requests the extended input report via feature report 0x05; try USB if your browser/controller cannot provide it. Normal Gamepad API input alone cannot provide finger positions. Touch coordinates stay in the browser and are not sent to analytics.
 
