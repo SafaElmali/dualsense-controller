@@ -1,3 +1,4 @@
+import { AdaptiveTriggers } from './adaptive-triggers.js';
 import { analytics } from './analytics.js';
 import { ControllerInput } from './input-state.js';
 import { DualSenseView } from './controller-view.js';
@@ -14,6 +15,38 @@ const pointers = new Map();
 const accessibleButtons = new Map();
 const timers = new Set();
 let view, audio, sound = false, statusTimer, gamepadIndex = null, gamepadFrame = 0;
+
+const triggerStatus = $('trigger-effect-status');
+let triggerBusy = false;
+const triggers = new AdaptiveTriggers(navigator.hid, state => {
+  triggerStatus.textContent = state.message;
+  $('disable-triggers').disabled = !state.connected;
+  $('enable-triggers').textContent = state.active ? 'Trigger effects enabled' : 'Enable trigger effects';
+  $('enable-triggers').disabled = triggerBusy || state.active || !navigator.hid;
+});
+if (!navigator.hid || !window.isSecureContext) {
+  $('enable-triggers').disabled = true;
+  triggerStatus.textContent = 'Open this site in desktop Chrome or Edge to feel real trigger resistance.';
+}
+function stopTriggers() {
+  void triggers.pause().catch(error => { triggerStatus.textContent = error.message; });
+}
+$('enable-triggers').addEventListener('click', async () => {
+  triggerBusy = true; $('enable-triggers').disabled = true;
+  try {
+    await triggers.connect();
+    if (document.hidden) await triggers.pause();
+    if (triggers.active) analytics.once('controller_trigger_effects_enabled');
+  } catch (error) {
+    triggerStatus.textContent = error.name === 'NotAllowedError' ? 'Controller access was not granted. Choose Enable to try again.' : error.message;
+  } finally {
+    triggerBusy = false; $('enable-triggers').disabled = triggers.active || !navigator.hid;
+  }
+});
+$('disable-triggers').addEventListener('click', stopTriggers);
+window.addEventListener('blur', () => { if (triggers.device) stopTriggers(); });
+document.addEventListener('visibilitychange', () => { if (document.hidden) stopTriggers(); });
+window.addEventListener('pagehide', () => { void triggers.disconnect().catch(() => {}); });
 
 function later(fn, milliseconds) { const timer = setTimeout(() => { timers.delete(timer); fn(); }, milliseconds); timers.add(timer); }
 function status(text, active = true) {
@@ -157,11 +190,12 @@ $('sound').addEventListener('click',()=>{
   $('sound-lines').setAttribute('d',sound?'M15 8a6 6 0 0 1 0 8m3-11a10 10 0 0 1 0 14':'m16 9 5 6m0-6-5 6');if(sound)tone('cross');
 });
 $('reset').addEventListener('click',()=>{
+  stopTriggers();
   releaseAll();if(view){view.lights=true;view.muted=false;view.setView('front');}
   document.querySelectorAll('[data-view]').forEach(button=>button.setAttribute('aria-pressed',String(button.dataset.view==='front')));
   status('Controller reset',false);$('announcement').textContent='Controller reset. Sticks centered and front view restored.';
 });
-$('show-help').addEventListener('click',()=>{releaseAll();help.showModal();});
+$('show-help').addEventListener('click',()=>{stopTriggers();releaseAll();help.showModal();});
 $('close-help').addEventListener('click',()=>help.close());
 help.addEventListener('click',event=>{if(event.target!==help)return;const r=help.getBoundingClientRect();if(event.clientX<r.left||event.clientX>r.right||event.clientY<r.top||event.clientY>r.bottom)help.close();});
 $('retry').addEventListener('click',()=>location.reload());
@@ -206,7 +240,7 @@ function addAccessibleControls(){
     if(point){button.style.left=point.x+'px';button.style.top=point.y+'px';}
   };
 }
-function showError(message){$('loading').hidden=true;$('load-error').hidden=false;$('error-message').textContent=message;}
+function showError(message){stopTriggers();$('loading').hidden=true;$('load-error').hidden=false;$('error-message').textContent=message;}
 try{
   view=new DualSenseView(canvas,input);
   await view.load(percent=>{$('load-progress').textContent=percent+'%';});

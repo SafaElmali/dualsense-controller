@@ -74,3 +74,11 @@ kbd{font:11px ui-monospace,monospace;border:1px solid #ffffff1f;background:#ffff
 @media(max-width:650px){main{padding:0 20px}header{height:68px}.brand{font-size:13px;gap:11px}.brand-icon{padding-right:12px}.brand-icon svg{width:43px}.header-actions{gap:12px}.mode{font-size:11px}.intro{padding-top:25px}.intro h1{font-size:34px}.intro p{font-size:13px}.model{display:none}.stage{margin:0 -18px;min-height:340px}.viewer{height:360px;min-height:340px;max-height:480px}.view-switch{top:16px;right:19px}.view-switch button{font-size:11px;padding:5px 11px}.stage-hint{font-size:10px;gap:7px;padding-bottom:17px}.workspace-bottom{padding:16px 0;flex-wrap:wrap;gap:12px}.last-input{order:3;width:100%;justify-content:flex-start;padding-top:4px}.utilities{gap:17px}.finish-label{min-width:0}.text-button{font-size:12px}.telemetry{grid-template-columns:1fr 1fr;padding:22px 0;gap:21px 15px}.readout:nth-child(2){border:none}.readout:last-child{justify-content:flex-start}.readout-label{font-size:10px}.connect-note{text-align:left;font-size:12px}.readout-values{font-size:11px}footer{font-size:11px;gap:6px;padding-top:0}.model-credit{font-size:10px}.help{padding:24px}.key-row{font-size:13px}}
 @media(max-width:390px){main{padding:0 16px}.brand-icon{display:none}.intro p{max-width:260px}.stage{min-height:300px}.viewer{height:320px;min-height:300px}.utilities .text-button span{display:none}.readout{gap:9px}.readout-values{gap:8px}.stage-hint{font-size:9px;gap:6px}}
 @media(prefers-reduced-motion:reduce){*,*:before{transition:none!important;animation:none!important}}
+
+.trigger-effects{display:flex;align-items:center;justify-content:space-between;gap:12px 24px;flex-wrap:wrap;border-top:1px solid var(--line);padding:20px 0;margin-bottom:12px}
+.trigger-effects h2{font-size:18px;font-weight:500;margin:0 0 4px;letter-spacing:-.4px}
+.trigger-effects p{font-size:14px;color:#a7aebb;margin:0;max-width:580px}
+.trigger-effect-actions{display:flex;gap:8px;flex-shrink:0}
+.trigger-effects .trigger-effect-help{width:100%;max-width:none;font-size:12px;color:var(--muted)}
+.trigger-effects button:disabled{cursor:default}
+@media(max-width:650px){.trigger-effect-actions{width:100%}.trigger-effect-actions button:first-child{flex:1}.trigger-effects{gap:14px}}

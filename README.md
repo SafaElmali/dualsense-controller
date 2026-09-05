@@ -33,7 +33,7 @@ Open [localhost:8000](http://localhost:8000).
 | Home / Mute / Touchpad | Space / M / T |
 | Create / Options | C / Escape |
 
-Home toggles the simulated light bars. Microphone mute and trigger resistance are visual simulations; the page does not control a microphone or reproduce physical trigger resistance.
+Home toggles the simulated light bars. Microphone mute remains a visual simulation. A connected DualSense can produce real adaptive trigger resistance through the optional hardware controls below.
 
 ## Tests
 
@@ -87,3 +87,15 @@ Localhost traffic is disabled by default. For an explicit integration test open 
 A visit here means one page load. Sum `controller_active_time.seconds` for active time; count `controller_interacted` for engaged page visits or use unique users for estimated people. Do not treat total events as visitor counts. Tracking begins only after the updated files are deployed.
 
 The public project token in `controller/analytics.js` only allows event ingestion; it cannot read analytics or manage the account. If you fork the project, replace it with your own token. Cookieless server hash mode must be enabled in PostHog project settings.
+
+## Real adaptive triggers
+
+In desktop Chrome or Edge, connect a Sony DualSense or DualSense Edge using USB or Bluetooth, then click **Enable trigger effects** and select it in the browser device picker. The app programs both triggers with gentle resistance starting around the first third of travel. Squeeze the physical L2/R2 triggers to feel it; the Gamepad API continues to mirror your inputs.
+
+**Off**, **Reset**, opening Controls, and leaving the tab send the explicit Off effect. Returning to the tab requires enabling effects again. Closing the page attempts to release and close the device; abrupt browser termination cannot guarantee a final hardware message. Disconnect the controller if resistance persists.
+
+Safari, Firefox, and browsers without WebHID keep the virtual controls but disable hardware effects. HTTPS or localhost is required. If Bluetooth is unavailable or another controller app has exclusive access, try a USB data cable and close that app.
+
+The feature sends only adaptive-trigger output fields, with no audio, rumble, light, or microphone commands. It does not recreate a particular game's trigger patterns. Software checks cover packet encoding, Bluetooth CRC, unsupported devices, canceled selection, concurrent Off, failed writes, and disconnect cleanup. Physical hardware feel requires manual verification.
+
+Protocol references and the adapted trigger encoder's license are in [controller/TRIGGER-NOTICES.md](controller/TRIGGER-NOTICES.md).
