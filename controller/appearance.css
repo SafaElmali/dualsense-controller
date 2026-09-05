@@ -1,6 +1,6 @@
 .appearance-tool{--light-color:#0046ff}
 .appearance-dot{width:20px;height:20px;border-radius:50%;background:var(--light-color);border:2px solid #eaf0ff;box-shadow:0 0 12px color-mix(in srgb,var(--light-color) 45%,transparent)}
-.appearance-panel{position:absolute;right:calc(100% + 15px);top:50%;transform:translateY(calc(-50% + var(--appearance-shift,0px)));overflow-y:auto;overscroll-behavior:contain;width:280px;padding:19px;border:1px solid #a4b5ca2e;border-radius:17px;background:linear-gradient(145deg,#202631,#141a22);box-shadow:0 16px 50px #0007;z-index:12;cursor:default}
+.appearance-panel{position:absolute;left:calc(100% + 15px);top:50%;transform:translate(var(--appearance-shift-x,0px),calc(-50% + var(--appearance-shift,0px)));overflow-y:auto;overscroll-behavior:contain;width:280px;max-width:calc(100vw - 24px);padding:19px;border:1px solid #a4b5ca2e;border-radius:17px;background:linear-gradient(145deg,#202631,#141a22);box-shadow:0 16px 50px #0007;z-index:12;cursor:default}
 .appearance-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:17px;gap:12px}
 .appearance-header h2{font-size:18px;line-height:1.2;font-weight:550;letter-spacing:-.5px;margin:0}
 .appearance-header button{width:27px;height:27px;display:grid;place-items:center;padding:0;border:0;border-radius:7px;background:#ffffff08;color:#9ca7b7}
@@ -29,6 +29,6 @@
 .appearance-reset{padding:0;margin-top:14px;background:none;border:0;color:#b7c3d1;font-size:11px;text-decoration:underline;text-decoration-color:#ffffff26;text-underline-offset:3px}
 .appearance-reset:hover{color:white}
 .appearance-tool:has(.appearance-panel:not([hidden]))~.sensor-tool .sensor-tooltip{display:none}
-@media(max-width:650px){.appearance-panel{top:auto;bottom:calc(100% + 14px);right:auto;left:calc(50% + 72px);transform:translate(-50%,var(--appearance-shift,0px));max-width:calc(100vw - 30px)}.appearance-dot{width:19px;height:19px}.sensor-tool:nth-child(2) .sensor-tooltip{left:calc(50% + 22px)}.sensor-tool:nth-child(2) .sensor-tooltip:after{left:calc(50% - 27px)}}
+@media(max-width:650px){.appearance-panel{top:auto;bottom:calc(100% + 14px);right:auto;left:calc(50% + 72px);transform:translate(calc(-50% + var(--appearance-shift-x,0px)),var(--appearance-shift,0px));max-width:calc(100vw - 30px)}.appearance-dot{width:19px;height:19px}.sensor-tool:nth-child(2) .sensor-tooltip{left:calc(50% + 22px)}.sensor-tool:nth-child(2) .sensor-tooltip:after{left:calc(50% - 27px)}}
 
 .sensor-dock:has(.appearance-panel:not([hidden])){z-index:20}

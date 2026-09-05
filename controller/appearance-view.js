@@ -15,11 +15,16 @@ export class AppearanceView {
       if (this.panel.hidden) return;
       const top = (window.visualViewport?.offsetTop || 0) + 12;
       const height = (window.visualViewport?.height || window.innerHeight) - 24;
+      const left = (window.visualViewport?.offsetLeft || 0) + 12;
+      const width = (window.visualViewport?.width || window.innerWidth) - 24;
       this.panel.style.maxHeight = `${Math.max(150, height)}px`;
       this.panel.style.setProperty('--appearance-shift', '0px');
+      this.panel.style.setProperty('--appearance-shift-x', '0px');
       const bounds = this.panel.getBoundingClientRect();
       const shift = bounds.top < top ? top - bounds.top : Math.min(0, top + height - bounds.bottom);
+      const shiftX = bounds.left < left ? left - bounds.left : Math.min(0, left + width - bounds.right);
       this.panel.style.setProperty('--appearance-shift', `${shift}px`);
+      this.panel.style.setProperty('--appearance-shift-x', `${shiftX}px`);
     };
     window.addEventListener('resize', this.place);
     window.addEventListener('scroll', this.place, { passive: true });
