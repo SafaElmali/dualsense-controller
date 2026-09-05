@@ -65,15 +65,17 @@ const touchpad = new TouchpadInput(contacts => {
   renderTouchpad();
 });
 let gyroUiTime = 0;
-const gyro = new GyroInput(({ pitch, yaw, roll, dt }) => {
+const gyro = new GyroInput(motion => {
+  const { pitch, yaw, roll, dt } = motion;
   if (document.hidden || !document.hasFocus() || help.open || drawing?.isOpen || diagnostics?.isOpen || leaderboard?.isOpen) { pauseGyro(); return; }
   if (range?.isOpen) range.motion({ pitch, yaw, dt });
-  else if (view?.ready && !pointers.size) view.motion({ pitch, yaw, roll, dt });
+  else if (view?.ready && !pointers.size) view.motion(motion);
   if (performance.now() - gyroUiTime > 100) {
     gyroUiTime = performance.now(); $('gyro-values').textContent = `Pitch ${pitch.toFixed(1)}°/s · Yaw ${yaw.toFixed(1)}°/s · Roll ${roll.toFixed(1)}°/s${gyro.scale ? '' : ' (approx.)'}`;
   }
 }, message => sensorStatus('gyro', message));
 function renderGyro() {
+  view?.setGyroEnabled(gyro.enabled);
   $('auto-view').disabled = gyro.enabled || !view?.ready;
   $('auto-view').title = gyro.enabled ? 'Turn gyro off to follow button presses' : 'Follow the controls you use';
   for (const id of ['recenter-gyro', 'range-recenter-gyro']) $(id).disabled = !gyro.enabled;
@@ -96,7 +98,7 @@ async function enableGyro() {
 function disableGyro() { gyro.setEnabled(false); renderGyro(); sensorStatus('gyro', 'Gyro off. Stick and mouse controls still work.'); analytics.featureAction('gyro', 'disabled'); }
 function recenterGyro() {
   range?.pause();
-  if (gyro.recenter()) { view?.setView('front'); if (range?.isOpen) range.game.setAim(500, 280); analytics.featureAction('gyro', 'recentered'); }
+  if (gyro.recenter()) { if (range?.isOpen) range.game.setAim(500, 280); analytics.featureAction('gyro', 'recentered'); }
 }
 $('enable-gyro').addEventListener('click', () => gyro.enabled ? disableGyro() : enableGyro());
 $('range-gyro').addEventListener('click', () => gyro.enabled ? disableGyro() : enableGyro());
@@ -330,6 +332,7 @@ canvas.addEventListener('pointermove', event => {
   } else if (pointer.id === 'l2' || pointer.id === 'r2') input.setButton(pointer.id,'pointer:'+event.pointerId,1+dy/120);
   else if (pointer.id === 'touchpad') { const hit=view.hit(event.clientX,event.clientY); if(hit?.id==='touchpad')view.touch(hit.point); }
   else if (!pointer.id || pointer.id === 'lights') {
+    if (pointer.moved && gyro.enabled) disableGyro();
     if (pointer.moved) analytics.interact('rotate');
     view.pose.x = Math.max(-1.4,Math.min(1.4,pointer.pose.x+dy*.008));
     view.pose.y = pointer.pose.y+dx*.008;
@@ -358,6 +361,7 @@ canvas.addEventListener('wheel',event=>{if(!view?.ready)return;event.preventDefa
 canvas.addEventListener('webglcontextlost',event=>{event.preventDefault();releaseAll();if(view)view.contextLost=true;showError('The 3D view was interrupted. Reload it to continue.');});
 
 for (const button of document.querySelectorAll('[data-view]')) button.addEventListener('click',()=>{
+  if (gyro.enabled) disableGyro();
   if(!view?.ready)return;setAutoView(false);releaseAll();view.setView(button.dataset.view);analytics.interact('view');
   document.querySelectorAll('[data-view]').forEach(el=>el.setAttribute('aria-pressed',String(el===button)));
 });
@@ -372,6 +376,7 @@ $('sound').addEventListener('click',()=>{
   $('sound-lines').setAttribute('d',sound?'M15 8a6 6 0 0 1 0 8m3-11a10 10 0 0 1 0 14':'m16 9 5 6m0-6-5 6');if(sound)tone('cross');
 });
 $('reset').addEventListener('click',()=>{
+  if (gyro.enabled) disableGyro();
   stopTriggers();
   releaseAll();if(view){view.lights=true;view.muted=false;view.setView('front');}
   inputCamera.reset();$('auto-view').setAttribute('aria-pressed','true');

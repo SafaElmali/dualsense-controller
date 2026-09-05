@@ -5,15 +5,17 @@ import { ControllerAnalytics } from '../controller/analytics-service.js';
 import { TargetPracticeView } from '../controller/target-practice-view.js';
 import { TargetPractice } from '../controller/target-practice.js';
 
-function packet(reportId = 1, rates = [160, -320, 480], timestamp = 30000) {
+function packet(reportId = 1, rates = [160, -320, 480], timestamp = 30000, acceleration = [0, 0, -8192]) {
   const data = new DataView(new ArrayBuffer(reportId === 1 ? 63 : 77)), start = reportId === 1 ? 0 : 1;
-  rates.forEach((value, i) => data.setInt16(start + 15 + i * 2, value, true)); data.setUint32(start + 27, timestamp, true); return data;
+  rates.forEach((value, i) => data.setInt16(start + 15 + i * 2, value, true));
+  acceleration.forEach((value, i) => data.setInt16(start + 21 + i * 2, value, true));
+  data.setUint32(start + 27, timestamp, true); return data;
 }
 function device(feature = async () => new DataView(new ArrayBuffer(0))) {
   return { listeners: new Set(), receiveFeatureReport: feature, addEventListener(_, listener) { this.listeners.add(listener); }, removeEventListener(_, listener) { this.listeners.delete(listener); }, emit(data, reportId = 1) { for (const listener of this.listeners) listener({ device: this, data, reportId }); } };
 }
 test('USB and Bluetooth gyro decode signed axes and timestamps, rejecting unsupported layouts', () => {
-  for (const id of [1, 0x31]) assert.deepEqual(GyroInput.decode(id, packet(id)), { rates: [10, -20, 30], timestamp: 30000 });
+  for (const id of [1, 0x31]) assert.deepEqual(GyroInput.decode(id, packet(id)), { rates: [10, -20, 30], acceleration: [0, 0, -1], timestamp: 30000 });
   assert.equal(GyroInput.decode(1, new DataView(new ArrayBuffer(9))), null);
   assert.equal(GyroInput.decode(2, packet()), null);
 });
@@ -59,6 +61,6 @@ test('motion aiming moves playing rounds only and remains bounded', () => {
 });
 test('motion analytics never include sensor data or device identifiers', () => {
   const events = [], analytics = new ControllerAnalytics((event, props) => events.push({ event, props }));
-  analytics.featureAction('gyro', 'enabled', { pitch: 100, device: 'private' });
+  analytics.featureAction('gyro', 'enabled', { pitch: 100, device: 'private', acceleration: [0, 1, 0], orientation: [0, 0, 0, 1] });
   assert.deepEqual(events.find(e => e.event === 'controller_gyro_enabled').props, {});
 });

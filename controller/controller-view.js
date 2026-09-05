@@ -193,7 +193,7 @@ export class DualSenseView {
     if (!width || !height) return;
     this.renderer.setSize(width, height, false);
     this.camera.aspect = width / height;
-    const verticalSpace = Math.max(3.65, 5.95 / this.camera.aspect);
+    const verticalSpace = this.gyroEnabled ? Math.max(6.3, 6.3 / this.camera.aspect) : Math.max(3.65, 5.95 / this.camera.aspect);
     this.camera.position.z = verticalSpace / (2 * Math.tan(THREE.MathUtils.degToRad(this.camera.fov / 2))) + .8;
     this.camera.zoom = this.zoom;
     this.camera.updateProjectionMatrix();
@@ -224,11 +224,14 @@ export class DualSenseView {
     if (resetZoom) { this.zoom = 1; this.resize(); }
   }
 
-  motion({ pitch, yaw, roll, dt }) {
-    const radians = Math.PI / 180 * dt;
-    const orientation = new THREE.Quaternion().setFromEuler(new THREE.Euler(this.pose.x, this.pose.y, this.pose.z));
-    orientation.multiply(new THREE.Quaternion().setFromEuler(new THREE.Euler(pitch * radians, -yaw * radians, -roll * radians)));
-    const euler = new THREE.Euler().setFromQuaternion(orientation);
+  setGyroEnabled(enabled) {
+    if (this.gyroEnabled === enabled) return;
+    this.gyroEnabled = enabled;
+    this.resize();
+  }
+
+  motion({ orientation }) {
+    const euler = new THREE.Euler().setFromQuaternion(new THREE.Quaternion().fromArray(orientation));
     this.pose = { x: euler.x, y: euler.y, z: euler.z };
   }
 
@@ -301,7 +304,7 @@ export class DualSenseView {
     const dt = Math.min((time - (this.previousTime || time)) / 1000, .05);
     this.previousTime = time;
     const blend = this.reducedMotion.matches ? 1 : 1 - Math.exp(-18 * dt);
-    const cameraBlend = this.reducedMotion.matches ? 1 : 1 - Math.exp(-8 * dt);
+    const cameraBlend = this.reducedMotion.matches ? 1 : 1 - Math.exp(-(this.gyroEnabled ? 30 : 8) * dt);
     const targetOrientation = new THREE.Quaternion().setFromEuler(new THREE.Euler(this.pose.x, this.pose.y, this.pose.z));
     this.model.quaternion.slerp(targetOrientation, cameraBlend);
     for (const [id, group] of this.controls) {
